@@ -144,3 +144,65 @@ async function createEmailToken(env: Env, userId: string, table: "email_verifica
   return token;
 }
 
+
+authRoutes.post("/resend-verification", async (c) => {
+  if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  const body = await c.req.json<{ email?: unknown }>().catch(() => null);
+  const email = normalizeEmail(body?.email);
+  if (!validEmail(email)) return c.json({ error: "INVALID_INPUT", message: "یک ایمیل معتبر وارد کنید." }, 400);
+  if (!await enforceRateLimit(c.env, `resend-verification:${email}`)) return c.json({ error: "RATE_LIMITED", message: "تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید." }, 429);
+  const user = await c.env.DB.prepare("SELECT id,status FROM users WHERE email=? LIMIT 1").bind(email).first<{ id: string; status: string }>();
+  if (!user || user.status !== "PENDING_VERIFICATION") return c.json({ status: "OK", message: "اگر حساب تأییدنشده‌ای با این ایمیل وجود داشته باشد، لینک ارسال خواهد شد." });
+  try {
+    const token = await createEmailToken(c.env, user.id, "email_verification_tokens");
+    await sendAccountEmail(c.env, email, "لینک تأیید حساب Visa Prepaid", "تأیید ایمیل", "برای فعال‌سازی حساب خود روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.", "تأیید ایمیل", token, "verify");
+  } catch (error) {
+    console.error("Verification resend failed", error instanceof Error ? error.message : "unknown");
+    return c.json({ error: "EMAIL_DELIVERY_FAILED", message: "ارسال ایمیل ناموفق بود. وضعیت دامنه و کلید Resend را بررسی کنید." }, 502);
+  }
+  return c.json({ status: "OK", message: "لینک تأیید دوباره ارسال شد." });
+});
+
+// Generic response prevents account enumeration.
+authRoutes.post("/forgot-password", async (c) => {
+  if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  const body = await c.req.json<{ email?: unknown }>().catch(() => null);
+  const email = normalizeEmail(body?.email);
+  if (!validEmail(email)) return c.json({ error: "INVALID_INPUT", message: "یک ایمیل معتبر وارد کنید." }, 400);
+  if (!await enforceRateLimit(c.env, `forgot-password:${email}`)) return c.json({ error: "RATE_LIMITED", message: "تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید." }, 429);
+  const user = await c.env.DB.prepare("SELECT id FROM users WHERE email=? LIMIT 1").bind(email).first<{ id: string }>();
+  if (user) {
+    try {
+      const token = await createEmailToken(c.env, user.id, "password_reset_tokens");
+      await sendAccountEmail(c.env, email, "بازیابی رمز عبور Visa Prepaid", "تغییر رمز عبور", "برای تعیین رمز عبور جدید روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.", "تعیین رمز جدید", token, "reset");
+    } catch (error) {
+      console.error("Password reset email failed", error instanceof Error ? error.message : "unknown");
+      return c.json({ error: "EMAIL_DELIVERY_FAILED", message: "ارسال ایمیل بازیابی ناموفق بود. تنظیمات دامنه Resend را بررسی کنید." }, 502);
+    }
+  }
+  return c.json({ status: "OK", message: "اگر حسابی با این ایمیل وجود داشته باشد، لینک بازیابی ارسال می‌شود." });
+});
+
+authRoutes.post("/reset-password", async (c) => {
+  if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  const body = await c.req.json<{ token?: unknown; password?: unknown }>().catch(() => null);
+  const token = typeof body?.token === "string" ? body.token : "";
+  const password = typeof body?.password === "string" ? body.password : "";
+  if (token.length < 32 || token.length > 128 || password.length < 12 || password.length > 128) {
+    return c.json({ error: "INVALID_INPUT", message: "لینک بازیابی یا رمز جدید معتبر نیست. رمز باید حداقل ۱۲ کاراکتر باشد." }, 400);
+  }
+  const tokenHash = await hashOpaqueToken(token, c.env.SESSION_SECRET);
+  if (!await enforceRateLimit(c.env, `reset-password:${tokenHash}`)) return c.json({ error: "RATE_LIMITED", message: "تعداد تلاش‌ها زیاد است. کمی بعد دوباره تلاش کنید." }, 429);
+  const user = await c.env.DB.prepare("SELECT user_id FROM password_reset_tokens WHERE token_hash=? AND used_at IS NULL AND expires_at>CURRENT_TIMESTAMP LIMIT 1")
+    .bind(tokenHash).first<{ user_id: string }>();
+  if (!user) return c.json({ error: "TOKEN_INVALID_OR_EXPIRED", message: "لینک بازیابی معتبر نیست یا منقضی شده است. دوباره درخواست لینک کنید." }, 400);
+  const passwordHash = await hashPassword(password);
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE users SET password_hash=?, status='ACTIVE', updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(passwordHash, user.user_id),
+    c.env.DB.prepare("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE token_hash=? AND used_at IS NULL").bind(tokenHash),
+    c.env.DB.prepare("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL").bind(user.user_id),
+    c.env.DB.prepare("UPDATE email_verification_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL").bind(user.user_id),
+    c.env.DB.prepare("UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=? AND revoked_at IS NULL").bind(user.user_id)
+  ]);
+  return c.json({ status: "PASSWORD_RESET", message: "رمز عبور با موفقیت تغییر کرد. حالا می‌توانید وارد شوید." });
+});
