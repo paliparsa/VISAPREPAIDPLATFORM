@@ -158,9 +158,8 @@ authRoutes.post("/resend-verification", async (c) => {
     await sendAccountEmail(c.env, email, "لینک تأیید حساب Visa Prepaid", "تأیید ایمیل", "برای فعال‌سازی حساب خود روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.", "تأیید ایمیل", token, "verify");
   } catch (error) {
     console.error("Verification resend failed", error instanceof Error ? error.message : "unknown");
-    return c.json({ error: "EMAIL_DELIVERY_FAILED", message: "ارسال ایمیل ناموفق بود. وضعیت دامنه و کلید Resend را بررسی کنید." }, 502);
   }
-  return c.json({ status: "OK", message: "لینک تأیید دوباره ارسال شد." });
+  return c.json({ status: "OK", message: "اگر حساب تأییدنشده‌ای با این ایمیل وجود داشته باشد، لینک ارسال خواهد شد." });
 });
 
 // Generic response prevents account enumeration.
@@ -177,7 +176,6 @@ authRoutes.post("/forgot-password", async (c) => {
       await sendAccountEmail(c.env, email, "بازیابی رمز عبور Visa Prepaid", "تغییر رمز عبور", "برای تعیین رمز عبور جدید روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.", "تعیین رمز جدید", token, "reset");
     } catch (error) {
       console.error("Password reset email failed", error instanceof Error ? error.message : "unknown");
-      return c.json({ error: "EMAIL_DELIVERY_FAILED", message: "ارسال ایمیل بازیابی ناموفق بود. تنظیمات دامنه Resend را بررسی کنید." }, 502);
     }
   }
   return c.json({ status: "OK", message: "اگر حسابی با این ایمیل وجود داشته باشد، لینک بازیابی ارسال می‌شود." });
