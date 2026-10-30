@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
-import { assertSameOrigin, constantTimeEqual, requireAdmin } from "../auth/security";
+import { assertSameOrigin, constantTimeEqual, requireAdmin, requireUser } from "../auth/security";
 
 export const adminRoutes = new Hono<{ Bindings: Env }>();
 export const adminBootstrapRoutes = new Hono<{ Bindings: Env }>();
@@ -82,8 +82,11 @@ adminRoutes.delete("/products/:id", async (c) => {
 
 adminBootstrapRoutes.post("/bootstrap", async (c) => {
   if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  const currentUser = await requireUser(c);
+  if (!currentUser) return c.json({ error: "UNAUTHENTICATED" }, 401);
   const body = await c.req.json<{ email?: unknown; token?: unknown }>().catch(() => null);
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (email !== currentUser.email) return c.json({ error: "BOOTSTRAP_NOT_ALLOWED" }, 403);
   const token = typeof body?.token === "string" ? body.token : "";
   if (!await validBootstrapToken(token, c.env.ADMIN_BOOTSTRAP_TOKEN || "")) return c.json({ error: "BOOTSTRAP_NOT_ALLOWED" }, 403);
   const result = await c.env.DB.prepare(`
