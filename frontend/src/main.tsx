@@ -82,7 +82,7 @@ function App() {
   function resetMessages() { setError(""); setNotice(""); setCanResendVerification(false); }
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); resetMessages();
-    if (mode !== "reset" && (!email.trim() || !/^\\S+@\\S+\\.\\S+$/.test(email.trim()))) { setError("یک ایمیل معتبر وارد کنید."); return; }
+    if (mode !== "reset" && (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim()))) { setError("یک ایمیل معتبر وارد کنید."); return; }
     if (mode === "register" && (!firstName.trim() || !lastName.trim())) { setError("نام و نام خانوادگی را وارد کنید."); return; }
     if ((mode === "register" || mode === "reset") && password.length < 12) { setError("رمز عبور باید حداقل ۱۲ کاراکتر داشته باشد."); return; }
     if (mode === "reset" && password !== confirmPassword) { setError("تکرار رمز عبور با رمز جدید یکسان نیست."); return; }
