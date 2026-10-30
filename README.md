@@ -14,14 +14,16 @@ Cloudflare-native Persian-language virtual prepaid card storefront and operation
 - Customer registration, email verification, login/logout, revocable sessions, and secure password recovery.
 - Server-authorized OWNER/ADMIN product catalog management with audit events.
 - Operations dashboard with customer/order overview, paginated order and customer lists, provider settings, connection test, payment configuration status, and audit activity.
+- Audited manual fulfillment for existing orders: admins can record independently verified payment references, then record a Tremendous dashboard order ID, optional HTTPS delivery link, and internal note. The flow never calls Tremendous to create a reward.
 - Tremendous API key can be saved by an OWNER/ADMIN; it is encrypted at rest with AES-GCM using the Cloudflare-only `ENCRYPTION_KEY`.
 - Tremendous Sandbox connection test reads funding sources and reports whether they are active and allowed for API orders.
 - Live issuance requires both `TREMENDOUS_MODE=live` and `ISSUANCE_MODE=LIVE_APPROVED`; the admin UI cannot enable it.
 
 ## Not implemented / not enabled
-- Customer order placement and checkout.
 - Crypto deposit address allocation, on-chain payment monitoring, and payment reconciliation.
-- Linking verified customer payments to provider issuance.
+- Customer order placement and checkout (therefore the manual workflow currently applies only to order records already present in D1).
+- Customer-facing order history and card-delivery display.
+- Automated linking of verified customer payments to provider issuance.
 - Customer card delivery/history, refunds, and production monitoring.
 - Full automated unit, integration, and browser tests.
 
