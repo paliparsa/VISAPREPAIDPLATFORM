@@ -1,7 +1,7 @@
 {
   "name": "visa-prepaid-platform",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -11,11 +11,18 @@
     "db:migrate:remote": "wrangler d1 migrations apply visa-prepaid-db --remote",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": { "hono": "^4.7.2", "react": "^19.0.0", "react-dom": "^19.0.0" },
+  "dependencies": {
+    "hono": "^4.7.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261030.1",
-    "@types/react": "^19.0.10", "@types/react-dom": "^19.0.4",
-    "@vitejs/plugin-react": "^4.3.4", "typescript": "^5.7.3",
-    "vite": "^6.1.0", "wrangler": "^4.4.0"
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "wrangler": "^4.4.0"
   }
 }
