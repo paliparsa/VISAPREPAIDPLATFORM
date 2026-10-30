@@ -24,7 +24,6 @@ Cloudflare-native Persian-language virtual prepaid card storefront and operation
 - Customer order placement and checkout (therefore the manual workflow currently applies only to order records already present in D1).
 - Customer-facing order history and card-delivery display.
 - Automated linking of verified customer payments to provider issuance.
-- Customer card delivery/history, refunds, and production monitoring.
 - Full automated unit, integration, and browser tests.
 
 ## Important provider restriction
