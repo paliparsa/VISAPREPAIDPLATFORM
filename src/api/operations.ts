@@ -50,7 +50,8 @@ operationsRoutes.get("/orders", async (c) => {
     FROM orders o JOIN users u ON u.id=o.user_id
     LEFT JOIN products p ON p.id=o.product_id
     LEFT JOIN payments pay ON pay.order_id=o.id
-    LEFT JOIN issuance_attempts ia ON ia.order_id=o.id
+    LEFT JOIN (SELECT order_id, MAX(created_at) AS latest_created_at FROM issuance_attempts GROUP BY order_id) latest_ia ON latest_ia.order_id=o.id
+    LEFT JOIN issuance_attempts ia ON ia.order_id=o.id AND ia.created_at=latest_ia.latest_created_at
     ${clause}
     ORDER BY o.created_at DESC LIMIT ? OFFSET ?
   `).bind(...binds, limit, (page - 1) * limit).all();
