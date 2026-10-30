@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 - 2026-10-31
+- Add one-time, expiring password-reset tokens and password reset email flow.
+- Allow customers to resend verification links for pending accounts.
+- Activate pending accounts after successful email-based password recovery.
+- Revoke existing sessions after a password change.
+- Add Persian UI for forgot password, reset password, and resend verification.
+- Return actionable email-delivery errors while keeping account-existence responses generic.
+
 ## 0.4.0 - 2026-10-31
 - Replace credential-based GitHub Actions deployment with native Cloudflare Workers Git integration.
 - Remove Cloudflare account ID/API token requirements from GitHub.
