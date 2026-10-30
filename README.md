@@ -52,6 +52,8 @@ See [provider integration setup](docs/provider-integration.md). The API recipien
 
 Never commit credentials, wallet seed phrases, or private keys. Never enable real card issuance or crypto payments before provider approval, eligibility enforcement, legal/compliance review, and end-to-end testing.
 
+See [authentication and admin setup](docs/auth-and-admin-setup.md) for required secrets, migration steps, and the first-owner bootstrap process.
+
 ## First administrator
 1. Register a normal account.
 2. Verify the email using the Resend message.
