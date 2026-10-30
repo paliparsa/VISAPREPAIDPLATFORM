@@ -1,7 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
 :root{font-family:"Vazirmatn","Yekan Bakh",Tahoma,system-ui,sans-serif;color:#f3f6fc;background:#05070c;font-synthesis:none;font-optical-sizing:auto;font-weight:400;--bg:#05070c;--surface:#0b101a;--surface-2:#101827;--line:#1c2a40;--muted:#91a0b5;--blue:#3978ee;--blue-soft:#10264b;--white:#f3f6fc;--green:#5ed6ae;--red:#ff777d;--radius:18px}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;scrollbar-color:#30435e #090d15;scrollbar-width:thin}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:#090d15}
+::-webkit-scrollbar-thumb{background:#30435e;border:2px solid #090d15;border-radius:999px}
+::-webkit-scrollbar-thumb:hover{background:#48658b}
+@media(forced-colors:active){html{scrollbar-color:auto}::-webkit-scrollbar-thumb{background:CanvasText;border-color:Canvas}}
 body{margin:0;min-width:320px;min-height:100vh;background:radial-gradient(ellipse at 72% -10%,#10254a 0%,transparent 42%),linear-gradient(180deg,#070b13 0%,#05070c 65%)}
 button,input{font:inherit}
 button{cursor:pointer}
