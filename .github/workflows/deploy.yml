@@ -1,22 +1,17 @@
-name: Cloudflare Deploy
+name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  workflow_dispatch:
-
-concurrency:
-  group: cloudflare-production
-  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
-    environment: production
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,69 +24,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Validate
+      - name: Typecheck and build
         run: |
           npm run typecheck
           npm run build
-
-      - name: Provision Cloudflare resources
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
-          RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
-        run: node scripts/provision-cloudflare.mjs
-
-      - name: Apply D1 migrations
-        run: npx wrangler d1 migrations apply visa-prepaid-db --remote --config .wrangler.generated.jsonc
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Configure Worker secrets
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          ADMIN_BOOTSTRAP_TOKEN: ${{ secrets.ADMIN_BOOTSTRAP_TOKEN }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          TREMENDOUS_API_KEY: ${{ secrets.TREMENDOUS_API_KEY }}
-        run: |
-          set -euo pipefail
-          for name in SESSION_SECRET RESEND_API_KEY; do
-            value="${!name:-}"
-            if [ -z "$value" ]; then
-              echo "::error::Missing required GitHub secret: $name"
-              exit 1
-            fi
-            printf '%s' "$value" | npx wrangler secret put "$name" --config .wrangler.generated.jsonc
-          done
-          if [ -n "${ADMIN_BOOTSTRAP_TOKEN:-}" ]; then
-            printf '%s' "$ADMIN_BOOTSTRAP_TOKEN" | npx wrangler secret put ADMIN_BOOTSTRAP_TOKEN --config .wrangler.generated.jsonc
-          fi
-          if [ -n "${TREMENDOUS_API_KEY:-}" ]; then
-            printf '%s' "$TREMENDOUS_API_KEY" | npx wrangler secret put TREMENDOUS_API_KEY --config .wrangler.generated.jsonc
-          fi
-
-      - name: Deploy Worker and frontend assets
-        run: npx wrangler deploy --config .wrangler.generated.jsonc
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Verify production health
-        env:
-          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 12); do
-            if curl --fail --silent --show-error "${APP_BASE_URL%/}/api/health"; then
-              echo
-              exit 0
-            fi
-            echo "Health check attempt $attempt/12 failed; waiting 5 seconds."
-            sleep 5
-          done
-          echo "::error::Production health check failed."
-          exit 1
