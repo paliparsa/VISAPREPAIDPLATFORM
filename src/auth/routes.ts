@@ -93,7 +93,7 @@ authRoutes.post("/login", async (c) => {
   if (!await enforceRateLimit(c.env, `login:${email}`)) return c.json({ error: "RATE_LIMITED", message: "تعداد تلاش‌ها زیاد است. کمی بعد دوباره امتحان کنید." }, 429);
   const record = await c.env.DB.prepare("SELECT id,email,password_hash,status FROM users WHERE email=? LIMIT 1")
     .bind(email).first<{ id: string; email: string; password_hash: string; status: string }>();
-  const valid = record ? await verifyPassword(password, record.password_hash) : false;
+  const valid = record ? await verifyPassword(password, record.password_hash) : await verifyPassword(password, "pbkdf2_sha256$100000$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
   if (!record || !valid) return c.json({ error: "INVALID_CREDENTIALS", message: "ایمیل یا رمز عبور صحیح نیست." }, 401);
   if (record.status !== "ACTIVE") return c.json({ error: "EMAIL_NOT_VERIFIED", message: "ابتدا ایمیل خود را تأیید کنید." }, 403);
 
