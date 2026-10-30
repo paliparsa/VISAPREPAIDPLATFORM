@@ -5,6 +5,7 @@ import { healthRoutes } from "./api/health";
 import { authRoutes } from "./auth/routes";
 import { adminBootstrapRoutes, adminRoutes } from "./api/admin";
 import { catalogRoutes } from "./api/catalog";
+import { operationsRoutes } from "./api/operations";
 
 const app = new Hono<{ Bindings: Env }>();
 app.use("/api/*", cors({
@@ -20,6 +21,7 @@ app.route("/api", healthRoutes);
 app.route("/api/auth", authRoutes);
 app.route("/api/admin", adminBootstrapRoutes);
 app.route("/api/admin", adminRoutes);
+app.route("/api/admin/operations", operationsRoutes);
 app.route("/api/catalog", catalogRoutes);
 app.notFound((c) => c.json({ error: "NOT_FOUND" }, 404));
 app.onError((error, c) => {
