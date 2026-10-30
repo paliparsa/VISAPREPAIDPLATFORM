@@ -44,9 +44,9 @@ operationsRoutes.get("/orders", async (c) => {
   const { results } = await c.env.DB.prepare(`
     SELECT o.id, o.status, o.recipient_name AS recipientName, o.recipient_email AS recipientEmail,
       o.face_value_minor AS faceValueMinor, o.sale_price_minor AS salePriceMinor, o.currency,
-      o.created_at AS createdAt, u.email AS customerEmail, p.name AS productName,
+      o.created_at AS createdAt, o.manual_payment_reference AS manualPaymentReference, o.manual_payment_note AS manualPaymentNote, u.email AS customerEmail, p.name AS productName,
       pay.status AS paymentStatus, pay.chain AS paymentChain,
-      ia.status AS issuanceStatus, ia.provider_order_id AS providerOrderId
+      ia.status AS issuanceStatus, ia.provider_order_id AS providerOrderId, ia.delivery_url AS deliveryUrl, ia.admin_note AS issuanceNote
     FROM orders o JOIN users u ON u.id=o.user_id
     LEFT JOIN products p ON p.id=o.product_id
     LEFT JOIN payments pay ON pay.order_id=o.id
