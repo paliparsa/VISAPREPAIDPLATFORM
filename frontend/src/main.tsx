@@ -196,6 +196,7 @@ function App() {
         <div className="section-heading"><div><div className="kicker"><span /> AVAILABLE CARDS</div><h2>کارت‌های قابل سفارش</h2></div><span className="muted-count">{products.length.toLocaleString("fa-IR")} محصول</span></div>
         {products.length ? <div className="catalog-grid">{products.map(product => <article className="catalog-card" key={product.id}><div className="mini-card"><span>VISA</span><small>PREPAID</small></div><h3>{product.name}</h3><p>{product.description || "کارت مجازی پیش‌پرداخت"}</p><div className="price-row"><span>ارزش کارت</span><b>{money(product.faceValueMinor)}</b></div><div className="price-row sale-price"><span>قیمت</span><b>{money(product.salePriceMinor)}</b></div><span className="coming-soon">سفارش‌دهی به‌زودی فعال می‌شود</span></article>)}</div> : <div className="empty-state"><div className="empty-symbol">V</div><h3>فعلاً محصولی برای نمایش وجود ندارد</h3><p>پس از تأیید محصولات توسط ارائه‌دهنده، کاتالوگ اینجا نمایش داده می‌شود.</p></div>}
       </section>}
+    </section>}
     <footer className="footer"><span>VISA PREPAID PLATFORM</span><span>پرداخت و صدور کارت تابع شرایط ارائه‌دهنده است.</span></footer>
   </main>;
 }
