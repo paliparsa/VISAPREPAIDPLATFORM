@@ -69,12 +69,17 @@ export function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
+function isLocalOrigin(env: Env): boolean {
+  try { const host = new URL(env.APP_BASE_URL).hostname; return host === "localhost" || host === "127.0.0.1"; }
+  catch { return false; }
+}
+
 export function cookieName(env: Env): string {
-  return env.APP_ENV === "development" ? "vpp_session" : "__Host-vpp_session";
+  return isLocalOrigin(env) ? "vpp_session" : "__Host-vpp_session";
 }
 
 export function sessionCookie(token: string, env: Env, maxAge = SESSION_SECONDS): string {
-  const secure = env.APP_ENV === "development" ? "" : " Secure;";
+  const secure = isLocalOrigin(env) ? "" : " Secure;";
   return `${cookieName(env)}=${token}; Path=/; HttpOnly;${secure} SameSite=Lax; Max-Age=${maxAge}`;
 }
 
