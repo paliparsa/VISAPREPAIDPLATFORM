@@ -4,23 +4,36 @@
   "main": "src/worker.ts",
   "compatibility_date": "2025-03-21",
   "compatibility_flags": ["nodejs_compat"],
-  "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application" },
+  "keep_vars": true,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
   "d1_databases": [{
     "binding": "DB",
     "database_name": "visa-prepaid-db",
-    "database_id": "REPLACE_WITH_D1_DATABASE_ID",
     "migrations_dir": "migrations"
   }],
-  "r2_buckets": [{ "binding": "PRIVATE_FILES", "bucket_name": "visa-prepaid-private-files" }],
+  "r2_buckets": [{
+    "binding": "PRIVATE_FILES"
+  }],
   "queues": {
-    "producers": [{ "binding": "JOBS", "queue": "visa-prepaid-jobs" }],
+    "producers": [{
+      "binding": "JOBS",
+      "queue": "visa-prepaid-jobs"
+    }],
     "consumers": [{
-      "queue": "visa-prepaid-jobs", "max_batch_size": 10,
-      "max_batch_timeout": 5, "max_retries": 5,
+      "queue": "visa-prepaid-jobs",
+      "max_batch_size": 10,
+      "max_batch_timeout": 5,
+      "max_retries": 5,
       "dead_letter_queue": "visa-prepaid-jobs-dlq"
     }]
   },
-  "triggers": { "crons": ["*/2 * * * *"] },
+  "triggers": {
+    "crons": ["*/2 * * * *"]
+  },
   "vars": {
     "APP_ENV": "development",
     "APP_BASE_URL": "http://localhost:5173",

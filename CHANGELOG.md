@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 - 2026-10-31
+- Replace credential-based GitHub Actions deployment with native Cloudflare Workers Git integration.
+- Remove Cloudflare account ID/API token requirements from GitHub.
+- Let Wrangler automatically provision supported D1, R2, and Queue resources from the Worker configuration.
+- Deploy the Worker/assets first, then apply pending remote D1 migrations.
+- Preserve dashboard-managed Worker variables and secrets across deployments.
+- Keep GitHub Actions for validation only.
+- Bump package version to 0.4.0.
+
 ## 0.3.0 - 2026-10-31
 - Add customer registration, email verification, login, logout, and seven-day revocable sessions.
 - Hash passwords with PBKDF2-HMAC-SHA-256 and store only HMAC-hashed opaque session and verification tokens.
