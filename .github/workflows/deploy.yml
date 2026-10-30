@@ -59,7 +59,7 @@ jobs:
           TREMENDOUS_API_KEY: ${{ secrets.TREMENDOUS_API_KEY }}
         run: |
           set -euo pipefail
-          for name in SESSION_SECRET ADMIN_BOOTSTRAP_TOKEN RESEND_API_KEY; do
+          for name in SESSION_SECRET RESEND_API_KEY; do
             value="${!name:-}"
             if [ -z "$value" ]; then
               echo "::error::Missing required GitHub secret: $name"
@@ -67,6 +67,9 @@ jobs:
             fi
             printf '%s' "$value" | npx wrangler secret put "$name" --config .wrangler.generated.jsonc
           done
+          if [ -n "${ADMIN_BOOTSTRAP_TOKEN:-}" ]; then
+            printf '%s' "$ADMIN_BOOTSTRAP_TOKEN" | npx wrangler secret put ADMIN_BOOTSTRAP_TOKEN --config .wrangler.generated.jsonc
+          fi
           if [ -n "${TREMENDOUS_API_KEY:-}" ]; then
             printf '%s' "$TREMENDOUS_API_KEY" | npx wrangler secret put TREMENDOUS_API_KEY --config .wrangler.generated.jsonc
           fi
