@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 - 2026-10-31
+- Align `@cloudflare/workers-types` with the Workers types major version expected by current Wrangler 4 releases.
+- Bump package version to 0.1.1.
+
 ## 0.1.0 - 2026-10-31
 - Initialize Cloudflare Workers + Hono application foundation.
 - Add React + Vite customer storefront shell.
