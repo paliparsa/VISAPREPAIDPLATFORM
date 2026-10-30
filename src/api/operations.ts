@@ -156,7 +156,7 @@ operationsRoutes.post("/provider/test", async (c) => {
   if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
   const config = await getTremendousRuntimeConfig(c.env).catch(() => null);
   if (!config?.apiKey) return c.json({ error: "PROVIDER_NOT_CONFIGURED", message: "ابتدا کلید API را ذخیره کنید." }, 400);
-  const base = config.mode === "live" ? "https://www.tremendous.com/api/v2" : "https://testflight.tremendous.com/api/v2";
+  const base = config.mode === "live" ? "https://api.tremendous.com/api/v2" : "https://testflight.tremendous.com/api/v2";
   let response: Response;
   try {
     response = await fetch(`${base}/funding_sources`, {
