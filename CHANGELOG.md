@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 - 2026-10-31
+- Add idempotent Cloudflare provisioning for D1, R2, primary Queue, and dead-letter Queue.
+- Generate a temporary Wrangler config with the discovered D1 database ID; do not commit account-specific IDs.
+- Add main-branch GitHub Actions deployment: validate, provision, migrate, sync secrets, deploy, and health-check.
+- Keep pull-request CI isolated from production provisioning, migrations, and deployment.
+- Document Cloudflare token permissions, GitHub secrets/variables, first deployment, and one-time owner bootstrap.
+- Bump package version to 0.4.0.
+
 ## 0.3.0 - 2026-10-31
 - Add customer registration, email verification, login, logout, and seven-day revocable sessions.
 - Hash passwords with PBKDF2-HMAC-SHA-256 and store only HMAC-hashed opaque session and verification tokens.
