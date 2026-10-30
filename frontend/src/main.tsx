@@ -29,7 +29,7 @@ function App() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
-  const [adminTab, setAdminTab] = useState<"catalog" | "bootstrap">("catalog");
+  const [bootstrapAvailable, setBootstrapAvailable] = useState(false);
   const [bootstrapToken, setBootstrapToken] = useState("");
   const [showBootstrapToken, setShowBootstrapToken] = useState(false);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProduct);
@@ -67,7 +67,10 @@ function App() {
   }, []);
   useEffect(() => {
     document.title = user ? "حساب کاربری | Visa Prepaid" : "ورود و ثبت‌نام | Visa Prepaid";
-    if (user) void loadProducts();
+    if (user) {
+      void loadProducts();
+      void api<{ available: boolean }>("/api/admin/bootstrap/status").then(result => setBootstrapAvailable(result.available)).catch(() => setBootstrapAvailable(false));
+    } else setBootstrapAvailable(false);
   }, [user]);
 
   function resetMessages() { setError(""); setNotice(""); }
@@ -98,7 +101,7 @@ function App() {
     event.preventDefault(); resetMessages(); setBusy(true);
     try {
       const result = await api<{ message: string }>("/api/admin/bootstrap", { method: "POST", body: JSON.stringify({ email: user?.email, token: bootstrapToken }) });
-      setNotice(result.message); setBootstrapToken(""); setAdminTab("catalog"); await refreshUser();
+      setNotice(result.message); setBootstrapToken(""); setBootstrapAvailable(false); await refreshUser();
     } catch (e) { setError(e instanceof Error ? e.message : "فعال‌سازی مدیر ناموفق بود."); }
     finally { setBusy(false); }
   }
@@ -161,8 +164,8 @@ function App() {
       <div className="dashboard-heading"><div><div className="kicker"><span /> ACCOUNT OVERVIEW</div><h1>سلام، خوش آمدید.</h1><p>از اینجا می‌توانید محصولات قابل سفارش و وضعیت دسترسی خود را ببینید.</p></div><div className="account-status"><span className="status-dot" /> حساب فعال</div></div>
       <div className="stats-grid"><article className="stat-card"><small>وضعیت حساب</small><strong>فعال</strong><span>ایمیل تأیید شده</span></article><article className="stat-card"><small>محصولات قابل سفارش</small><strong>{products.length.toLocaleString("fa-IR")}</strong><span>بر اساس کاتالوگ ارائه‌دهنده</span></article><article className="stat-card"><small>ارز پایه</small><strong>USD</strong><span>دلار آمریکا</span></article></div>
       {["OWNER", "ADMIN"].includes(user.role) ? <section className="admin-section">
-        <div className="section-heading"><div><div className="kicker"><span /> MANAGEMENT</div><h2>مدیریت کاتالوگ</h2></div><div className="admin-tabs"><button className={adminTab === "catalog" ? "selected" : ""} onClick={() => setAdminTab("catalog")}>محصولات</button><button className={adminTab === "bootstrap" ? "selected" : ""} onClick={() => setAdminTab("bootstrap")}>راه‌اندازی مدیر</button></div></div>
-        {adminTab === "catalog" ? <>
+        <div className="section-heading"><div><div className="kicker"><span /> MANAGEMENT</div><h2>مدیریت کاتالوگ</h2></div></div>
+        <>
           <form id="product-editor" className="product-editor" onSubmit={saveProduct} noValidate>
             <div className="editor-title"><h3>{productForm.id ? "ویرایش محصول" : "افزودن محصول"}</h3>{productForm.id && <button type="button" className="text-button" onClick={() => setProductForm(emptyProduct)}>لغو ویرایش</button>}</div>
             <div className="editor-grid">
@@ -181,7 +184,7 @@ function App() {
           </tbody></table></div>
           <p className="admin-note">محصولات جدید به‌صورت پیش‌فرض غیرفعال‌اند. فعال‌سازی فقط پس از تأیید شناسه و شرایط محصول در حساب ارائه‌دهنده انجام شود.</p>
         </> : <form className="bootstrap-panel" onSubmit={bootstrapOwner} noValidate><h3>تبدیل حساب فعلی به مدیر اصلی</h3><p>این عملیات فقط یک‌بار و زمانی انجام می‌شود که هنوز هیچ مدیری در سامانه وجود نداشته باشد. ایمیل حساب فعال فعلی استفاده می‌شود.</p><label>کلید راه‌اندازی مدیر<div className="password-wrap"><input type={showBootstrapToken ? "text" : "password"} value={bootstrapToken} onChange={e => setBootstrapToken(e.target.value)} autoComplete="off" dir="ltr" /><button type="button" className="reveal" onClick={() => setShowBootstrapToken(v => !v)} aria-label={showBootstrapToken ? "مخفی کردن کلید" : "نمایش کلید"}>{showBootstrapToken ? "مخفی" : "نمایش"}</button></div></label><button className="button button-primary" disabled={busy || !bootstrapToken}>فعال‌سازی مدیر اصلی</button></form>}
-      </section> : <section className="catalog-section"><div className="section-heading"><div><div className="kicker"><span /> AVAILABLE CARDS</div><h2>کارت‌های قابل سفارش</h2></div><span className="muted-count">{products.length.toLocaleString("fa-IR")} محصول</span></div>
+      </section> : bootstrapAvailable ? <section className="admin-section"><div className="section-heading"><div><div className="kicker"><span /> FIRST ADMIN</div><h2>راه‌اندازی مدیر اصلی</h2></div></div><form className="bootstrap-panel" onSubmit={bootstrapOwner} noValidate><h3>تبدیل حساب فعلی به مدیر اصلی</h3><p>هنوز مدیری برای سامانه ساخته نشده است. با کلید یک‌بارمصرف Cloudflare می‌توانید حساب تأییدشده خود را به مدیر اصلی تبدیل کنید.</p><label>کلید راه‌اندازی مدیر<input type={showBootstrapToken ? "text" : "password"} value={bootstrapToken} onChange={e => setBootstrapToken(e.target.value)} autoComplete="off" dir="ltr" /><button type="button" className="reveal bootstrap-reveal" onClick={() => setShowBootstrapToken(v => !v)} aria-label={showBootstrapToken ? "مخفی کردن کلید" : "نمایش کلید"}>{showBootstrapToken ? "مخفی" : "نمایش"}</button></label><button className="button button-primary" disabled={busy || !bootstrapToken}>فعال‌سازی مدیر اصلی</button></form></section> : <section className="catalog-section"><div className="section-heading"><div><div className="kicker"><span /> AVAILABLE CARDS</div><h2>کارت‌های قابل سفارش</h2></div><span className="muted-count">{products.length.toLocaleString("fa-IR")} محصول</span></div>
         {products.length ? <div className="catalog-grid">{products.map(product => <article className="catalog-card" key={product.id}><div className="mini-card"><span>VISA</span><small>PREPAID</small></div><h3>{product.name}</h3><p>{product.description || "کارت مجازی پیش‌پرداخت"}</p><div className="price-row"><span>ارزش کارت</span><b>{money(product.faceValueMinor)}</b></div><div className="price-row sale-price"><span>قیمت</span><b>{money(product.salePriceMinor)}</b></div><span className="coming-soon">سفارش‌دهی به‌زودی فعال می‌شود</span></article>)}</div> : <div className="empty-state"><div className="empty-symbol">V</div><h3>فعلاً محصولی برای نمایش وجود ندارد</h3><p>پس از تأیید محصولات توسط ارائه‌دهنده، کاتالوگ اینجا نمایش داده می‌شود.</p></div>}
       </section>}
     </section>}
