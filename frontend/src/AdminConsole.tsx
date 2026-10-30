@@ -12,7 +12,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 const money = (minor: number) => new Intl.NumberFormat("fa-IR", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format((minor || 0) / 100);
 const number = (value: unknown) => new Intl.NumberFormat("fa-IR").format(Number(value || 0));
 const date = (value: string) => value ? new Date(value.replace(" ", "T") + (value.endsWith("Z") ? "" : "Z")).toLocaleString("fa-IR") : "—";
-const statusLabel = (value: string) => ({ PENDING_PAYMENT: "در انتظار پرداخت", AWAITING_PAYMENT: "در انتظار پرداخت", PAID: "پرداخت‌شده", ISSUING: "در حال صدور", ISSUED: "صادرشده", COMPLETED: "تکمیل‌شده", FAILED: "ناموفق", CANCELED: "لغوشده", AWAITING: "در انتظار", CONFIRMING: "در حال تأیید", ACTIVE: "فعال", PENDING_VERIFICATION: "در انتظار تأیید ایمیل" }[value] || value || "—");
+const statusLabel = (value: string) => ({ PENDING_PAYMENT: "در انتظار پرداخت", AWAITING_PAYMENT: "در انتظار پرداخت", PAID: "پرداخت‌شده", ISSUING: "در حال صدور", ISSUED: "صادرشده", COMPLETED: "تکمیل‌شده", FAILED: "ناموفق", CANCELED: "لغوشده", AWAITING: "در انتظار", CONFIRMING: "در حال تأیید", MANUALLY_CONFIRMED: "تأیید دستی", ACTIVE: "فعال", PENDING_VERIFICATION: "در انتظار تأیید ایمیل" }[value] || value || "—");
 
 export function AdminConsole({ onMessage }: Props) {
   const [tab, setTab] = useState<Tab>("overview");
