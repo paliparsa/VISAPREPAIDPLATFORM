@@ -20,7 +20,7 @@ Cloudflare-native platform for a Persian-language virtual prepaid card storefron
 - Admin product catalog create/edit/list/disable API, with server-side OWNER/ADMIN checks.
 - Public catalog of enabled products and Persian RTL account/admin interface.
 - Tremendous API v2 adapter for Virtual Visa order creation/status lookup.
-- One-click Cloudflare provisioning and main-branch automatic deployment workflow.
+- Cloudflare Git integration deployment with Wrangler-managed resource provisioning and D1 migrations.
 
 ## Not implemented yet
 - Customer order placement and checkout.
@@ -41,18 +41,37 @@ See [provider integration setup](docs/provider-integration.md). The API recipien
 5. Start the Worker: `npx wrangler dev --port 8787`.
 6. Start the frontend: `npm run dev` (Vite proxies `/api` to port 8787).
 
-## One-time Cloudflare setup and automatic deploy
-Follow [Cloudflare bootstrap and deployment](docs/cloudflare-bootstrap.md). Add the Cloudflare token/account ID and application secrets once to GitHub Actions, and add the public URL and verified Resend sender as Actions variables. The workflow then creates missing D1/R2/Queue resources, discovers the D1 ID, applies pending migrations, syncs Worker secrets, deploys, and checks API health on every push to `main`.
+## Cloudflare Git integration (no Cloudflare credentials in GitHub)
+Connect this repository to the existing Worker from **Cloudflare Dashboard → Workers & Pages → your Worker → Settings → Builds → Connect**. Select this GitHub repository and the `main` branch.
 
-The Cloudflare API token needs Account D1 Edit, Workers Scripts Edit, Workers R2 Storage Edit, Queues Edit, and Account Settings Read. The Resend sender domain still needs to be verified manually. GitHub Actions never commits generated credentials or the generated Wrangler config.
+Use these build settings:
+- Build command: `npm run build`
+- Deploy command: `npm run deploy`
+- Root directory: repository root
 
-## First administrator
+Cloudflare Workers Builds authenticates deployments with its own account token. Do not add `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_ACCOUNT_ID` to GitHub Actions. Wrangler provisions the D1, R2, and Queue resources declared in `wrangler.jsonc` during deployment; the D1 migrations are applied immediately after the first successful Worker deploy and on subsequent deploys.
+
+### One-time Worker secrets and variables
+In **Worker → Settings → Variables and Secrets**, add runtime secrets:
+- `SESSION_SECRET`: random value of at least 32 characters.
+- `ADMIN_BOOTSTRAP_TOKEN`: long random one-time owner bootstrap token.
+- `RESEND_API_KEY`: Resend API key.
+- `TREMENDOUS_API_KEY`: optional; keep the provider in sandbox mode.
+
+Add/update runtime variables:
+- `APP_BASE_URL`: the exact HTTPS origin Cloudflare assigned to the Worker, or your custom domain.
+- `RESEND_FROM_EMAIL`: sender address whose domain is verified in Resend.
+- `APP_ENV`: `production`.
+
+These are configured once in Cloudflare, not in GitHub. `keep_vars: true` prevents Wrangler deployments from overwriting dashboard-managed variables. Secrets are retained across deployments.
+
+### First administrator
 1. Register a normal account.
 2. Verify the email using the Resend message.
 3. Sign in.
 4. Open **راه‌اندازی مدیر** in the account UI.
 5. Enter `ADMIN_BOOTSTRAP_TOKEN` once.
-6. After successful owner creation, remove the bootstrap token from GitHub Actions and Cloudflare Worker secrets.
+6. After successful owner creation, delete `ADMIN_BOOTSTRAP_TOKEN` from Worker secrets. The owner bootstrap endpoint is one-time at database level.
 
 ## Launch safety
 Never commit credentials, wallet seed phrases, or private keys. Keep Tremendous in sandbox until provider approval, recipient eligibility enforcement, legal/compliance review, and end-to-end testing are complete. This infrastructure workflow does not enable live crypto processing or card issuance.
