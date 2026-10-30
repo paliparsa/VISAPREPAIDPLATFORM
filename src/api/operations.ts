@@ -198,13 +198,12 @@ operationsRoutes.post("/orders/:id/confirm-payment", async (c) => {
   const current = await c.env.DB.prepare("SELECT id,status FROM orders WHERE id=? LIMIT 1").bind(orderId).first<{id:string;status:string}>();
   if (!current) return c.json({ error: "ORDER_NOT_FOUND" }, 404);
   if (current.status !== "PENDING_PAYMENT" && current.status !== "AWAITING_PAYMENT") return c.json({ error: "ORDER_STATE_CONFLICT", message: "این سفارش در وضعیت قابل تأیید پرداخت نیست." }, 409);
-  await c.env.DB.batch([
+  const results = await c.env.DB.batch([
     c.env.DB.prepare("UPDATE orders SET status='PAID',manual_payment_reference=?,manual_payment_note=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('PENDING_PAYMENT','AWAITING_PAYMENT')").bind(reference, note || null, orderId),
     c.env.DB.prepare("UPDATE payments SET status='MANUALLY_CONFIRMED' WHERE order_id=? AND status IN ('AWAITING','PENDING','CONFIRMING')").bind(orderId),
-    c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) VALUES(?, 'PAYMENT_MANUALLY_CONFIRMED','ORDER',?,?)").bind(actor.id, orderId, JSON.stringify({ reference, note }))
+    c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) SELECT ?, 'PAYMENT_MANUALLY_CONFIRMED','ORDER',?,? WHERE EXISTS (SELECT 1 FROM orders WHERE id=? AND status='PAID' AND manual_payment_reference=?)").bind(actor.id, orderId, JSON.stringify({ reference, note }), orderId, reference)
   ]);
-  const updated = await c.env.DB.prepare("SELECT status FROM orders WHERE id=?").bind(orderId).first<{status:string}>();
-  if (updated?.status !== "PAID") return c.json({ error: "ORDER_STATE_CONFLICT", message: "وضعیت سفارش هم‌زمان تغییر کرده است؛ صفحه را تازه کنید." }, 409);
+  if ((results[0].meta.changes ?? 0) !== 1) return c.json({ error: "ORDER_STATE_CONFLICT", message: "وضعیت سفارش هم‌زمان تغییر کرده است؛ صفحه را تازه کنید." }, 409);
   return c.json({ status: "PAID", message: "پرداخت با ثبت مرجع و تأیید مدیر ثبت شد." });
 });
 
@@ -224,10 +223,10 @@ operationsRoutes.post("/orders/:id/manual-issuance", async (c) => {
   const attemptId = crypto.randomUUID();
   const externalId = `manual_${crypto.randomUUID()}`;
   const results = await c.env.DB.batch([
-    c.env.DB.prepare("INSERT INTO issuance_attempts(id,order_id,provider,external_id,provider_order_id,status,delivery_url,admin_note,processed_by,updated_at) VALUES(?,?,'TREMENDOUS_MANUAL',?,?, 'ISSUED',?,?,?,CURRENT_TIMESTAMP)").bind(attemptId, orderId, externalId, providerOrderId, deliveryUrl || null, note || null, actor.id),
     c.env.DB.prepare("UPDATE orders SET status='ISSUED',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('PAID','ISSUING')").bind(orderId),
-    c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) VALUES(?, 'MANUAL_CARD_ISSUED','ORDER',?,?)").bind(actor.id, orderId, JSON.stringify({ provider: "TREMENDOUS_MANUAL", providerOrderId, deliveryUrl: Boolean(deliveryUrl), note }))
+    c.env.DB.prepare("INSERT INTO issuance_attempts(id,order_id,provider,external_id,provider_order_id,status,delivery_url,admin_note,processed_by,updated_at) SELECT ?,?,'TREMENDOUS_MANUAL',?,?, 'ISSUED',?,?,?,CURRENT_TIMESTAMP WHERE EXISTS (SELECT 1 FROM orders WHERE id=? AND status='ISSUED')").bind(attemptId, orderId, externalId, providerOrderId, deliveryUrl || null, note || null, actor.id, orderId),
+    c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) SELECT ?, 'MANUAL_CARD_ISSUED','ORDER',?,? WHERE EXISTS (SELECT 1 FROM issuance_attempts WHERE id=?)").bind(actor.id, orderId, JSON.stringify({ provider: "TREMENDOUS_MANUAL", providerOrderId, deliveryUrl: Boolean(deliveryUrl), note }), attemptId)
   ]);
-  if ((results[1].meta.changes ?? 0) !== 1) return c.json({ error: "ORDER_STATE_CONFLICT", message: "وضعیت سفارش هم‌زمان تغییر کرده است؛ صفحه را تازه کنید." }, 409);
+  if ((results[0].meta.changes ?? 0) !== 1 || (results[1].meta.changes ?? 0) !== 1) return c.json({ error: "ORDER_STATE_CONFLICT", message: "وضعیت سفارش هم‌زمان تغییر کرده است؛ صفحه را تازه کنید." }, 409);
   return c.json({ status: "ISSUED", message: "صدور دستی ثبت شد. هیچ درخواست API به Tremendous ارسال نشد." });
 });
