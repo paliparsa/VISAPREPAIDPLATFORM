@@ -61,8 +61,9 @@ authRoutes.post("/register", async (c) => {
 
   try {
     await sendVerification(c.env, email, token);
-  } catch {
-    return c.json({ status: "PENDING_VERIFICATION", message: "حساب ساخته شد اما ارسال ایمیل ناموفق بود. با پشتیبانی تماس بگیرید." }, 201);
+  } catch (error) {
+    console.error("Registration email delivery failed", error instanceof Error ? error.message : "unknown");
+    return c.json({ status: "PENDING_VERIFICATION", message: "حساب ساخته شد اما ایمیل تأیید ارسال نشد. از گزینه ارسال مجدد ایمیل استفاده کنید." }, 201);
   }
   return c.json({ status: "PENDING_VERIFICATION", message: "لینک تأیید به ایمیل شما ارسال شد." }, 201);
 });
@@ -124,3 +125,22 @@ authRoutes.get("/me", async (c) => {
   if (!user) return c.json({ user: null }, 401);
   return c.json({ user });
 });
+async function sendAccountEmail(env: Env, email: string, subject: string, heading: string, description: string, actionLabel: string, token: string, queryName: "verify" | "reset"): Promise<void> {
+  const actionUrl = new URL("/", env.APP_BASE_URL);
+  actionUrl.searchParams.set(queryName, token);
+  const mailer = new ResendMailer(env.RESEND_API_KEY, env.RESEND_FROM_EMAIL);
+  await mailer.send({
+    to: email, subject,
+    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.9"><h2>${heading}</h2><p>${description}</p><p><a href="${actionUrl.toString()}">${actionLabel}</a></p><p>اگر این درخواست از طرف شما نبوده، این پیام را نادیده بگیرید.</p></div>`
+  });
+}
+
+async function createEmailToken(env: Env, userId: string, table: "email_verification_tokens" | "password_reset_tokens"): Promise<string> {
+  const token = randomToken();
+  const tokenHash = await hashOpaqueToken(token, env.SESSION_SECRET);
+  await env.DB.prepare(`UPDATE ${table} SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL`).bind(userId).run();
+  await env.DB.prepare(`INSERT INTO ${table} (id,user_id,token_hash,expires_at) VALUES (?,?,?,datetime('now','+30 minutes'))`)
+    .bind(crypto.randomUUID(), userId, tokenHash).run();
+  return token;
+}
+
