@@ -7,6 +7,7 @@ import {
 } from "./security";
 
 export const authRoutes = new Hono<{ Bindings: Env }>();
+authRoutes.use("/*", async (c, next) => { c.header("Cache-Control", "no-store"); await next(); });
 
 function normalizeEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
