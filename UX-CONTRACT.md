@@ -2,7 +2,7 @@
 
 ## Product context
 - Audience: Persian-speaking customers and authorized operations staff.
-- Primary jobs: create and access an account; browse enabled prepaid card products; manage the product catalog.
+- Primary jobs: create/access an account, browse enabled products, and let authorized operators inspect and configure the platform.
 - Target markets: recipients accepted by the card provider, subject to actual residence and provider eligibility.
 - Active locales: fa-IR (RTL), with LTR treatment for emails, identifiers, and monetary values.
 - Accessibility target: WCAG 2.2 AA baseline.
@@ -11,70 +11,78 @@
 | Domain / scope | Authoritative source | Source type | Reviewed date |
 |---|---|---|---|
 | Provider eligibility and issuance | docs/provider-integration.md | Provider integration contract | 2026-10-31 |
-| Permission model | src/api/admin.ts and src/auth/security.ts | Implemented server authorization | 2026-10-31 |
+| Permission model | src/api/admin.ts and src/api/operations.ts | Implemented server authorization | 2026-10-31 |
 | Account lifecycle | migrations/0001_initial.sql and migrations/0002_auth_and_catalog.sql | D1 schema | 2026-10-31 |
 | Product lifecycle | src/api/admin.ts | Admin API contract | 2026-10-31 |
+| Admin settings storage | src/lib/tremendous-config.ts and migrations/0004_admin_operations.sql | Encrypted settings contract | 2026-10-31 |
 
 ## Visual contract
 - Project DESIGN.md: DESIGN.md
-- Token ownership: existing runtime CSS is canonical; DESIGN.md mirrors the current values.
-- Runtime token source: frontend/src/style.css :root custom properties.
-- Theme: dark only at this stage.
+- Token ownership: runtime CSS custom properties in frontend/src/style.css are canonical.
+- Theme: dark only.
 
 ## Canonical UI Map
 | Capability | Canonical owner | Source of truth | Allowed variants | Verification |
 |---|---|---|---|---|
-| Form | native labeled form fields + shared CSS rules | this contract | login / registration / product edit | keyboard + API validation |
+| Form | native labeled fields + shared CSS | this contract | auth / product / provider settings | keyboard + API validation |
 | CRUD | /api/admin/products | this contract | create / edit / soft-disable | API + CI |
-| Toast/feedback | shared message banner in App | this contract | success / error | live region |
-| Scrollbar | global html rules in style.css | DESIGN.md | standard | computed style |
-| Permissions | server-side requireAdmin middleware | src/auth/security.ts | owner/admin | 401/403 API tests pending |
+| Tables | AdminConsole semantic tables | this contract | paginated read-only operations tables | API paging + responsive |
+| Feedback | App shared message banner | this contract | success / error | live region |
+| Permissions | requireAdmin middleware | src/auth/security.ts | OWNER/ADMIN | 401/403 API tests pending |
+| Secret storage | AES-GCM encrypted D1 setting | src/lib/tremendous-config.ts | Sandbox API key | encryption/decryption tests pending |
 
 ## Component behavior
-- Forms use noValidate and application-owned validation.
-- Password inputs are masked by default; paste and password managers remain enabled.
-- Auth errors are generic for invalid credentials.
-- Product create/edit returns to the catalog list and shows inline success/error feedback.
-- Product disable is a reversible soft-disable; editing can re-enable it.
-- Product create/edit/disable operations write actor, action, entity, and non-sensitive change metadata to audit_logs.
-- All privileged API operations are enforced server-side; hiding admin UI is not authorization.
+- All forms use noValidate and application-owned validation.
+- Password and API-key inputs are masked by default; paste remains enabled.
+- Product create/edit returns to the catalog list and shows shared feedback.
+- Product disable is reversible soft-disable.
+- Provider API keys are encrypted at rest; raw keys never appear in GET responses, logs, or audit metadata.
+- Provider connection test is read-only and uses GET /funding_sources.
+- Orders, customers, provider settings, and audit activity are server-authorized for OWNER/ADMIN.
+- Order and customer lists use server pagination (20 rows, max 50) and query filters.
+- Payment configuration is informational; the UI must not imply that configured chain names mean monitoring or payment confirmation is operational.
+- No manual payment confirmation, order status mutation, or live issuance action is exposed in the console.
+- All privileged operations are enforced server-side.
 
 ## Flow ledger
 | Operation | Trigger | Pending | Success destination | Success feedback | Failure recovery |
 |---|---|---|---|---|---|
-| Register | Create account | Disabled submit | Login form | Email verification guidance | Preserve form fields |
-| Verify email | Email link | Verify request | Login form | Verification status | Explain expired/invalid link |
-| Login | Sign in | Disabled submit | Account overview | Signed-in state | Generic inline error |
-| Logout | Header action | Disabled action | Public auth view | Signed-out message | Preserve session if request fails |
-| Create product | Admin form | Disabled save | Catalog list | Created message | Preserve form |
-| Edit product | Row action | Disabled save | Catalog list | Updated message | Preserve form |
-| Disable product | Row action | Request pending | Catalog list | Disabled message | Product remains visible on failure |
-| Bootstrap owner | Setup form | Disabled action | Admin catalog | Owner-created message | Explain one-time setup conditions |
+| Register / login | Auth form | Disabled submit | Account overview | Inline status | Preserve input |
+| Bootstrap owner | One-time setup form | Disabled action | Admin console | Owner-created message | Explain one-time setup |
+| Create/edit product | Product form | Disabled save | Product list | Shared success banner | Preserve form |
+| Disable product | Product action | Request pending | Product list | Shared success banner | Product remains enabled on failure |
+| Save provider settings | Provider form | Disabled save | Provider settings | Shared success banner | Preserve non-secret values; key remains masked |
+| Test provider | Test connection | Disabled action | Provider results | Connected state only after 2xx | Explain auth/rate-limit/network error |
+| Browse orders/customers | List filters/pagination | Loading indicator | Same list | Updated result set | Keep current filters |
+| Inspect activity | Activity tab | Loading indicator | Activity list | Loaded records | Retry |
 
 ## Navigation and responsive behavior
 - Single-page app state; title updates between public and authenticated views.
-- RTL by default; email and provider identifiers are LTR.
+- RTL by default; email, provider identifiers, and amounts use LTR treatment.
 - Tables scroll horizontally on narrow screens; forms stack to one column.
+- Admin navigation is horizontally scrollable on narrow screens.
 
 ## Async and resilience
-- Auth mutations are server-validated and rate-limited by normalized email.
+- Auth mutations are server-validated and rate-limited.
 - Sessions are opaque, stored hashed in D1, HttpOnly, SameSite=Lax cookies, and expire after seven days.
-- Logout revokes the current session in D1.
-- Product updates are pessimistic; UI updates only after server success.
-- No order, payment, or card-issuance action is exposed in this stage.
+- Financial/provider mutations are pessimistic; UI updates only after server confirmation.
+- Provider connection test is read-only; a failed or timed-out request is not reported as connected.
+- Order/customer views are read-only and server-paginated.
+- No checkout, crypto payment verification, or automated card delivery is enabled.
 
 ## Validation
-- Passwords are at least 12 characters and hashed with PBKDF2-HMAC-SHA-256 (100,000 iterations).
-- Email verification links expire after 30 minutes and are single-use.
+- Passwords are at least 12 characters and hashed with PBKDF2-HMAC-SHA-256.
 - Product values are integer minor units in USD; sale price cannot be lower than face value.
-- Product forms suppress browser-native validation and show app-owned messages.
+- Provider key encryption uses AES-GCM with a 12-byte random IV and a Cloudflare-only 32-byte key.
+- API keys and encryption keys are never returned to the client.
 
-## Permission and clipboard
-- Owner bootstrap is available only to an authenticated, active account, requires the bootstrap secret, and succeeds only while no admin exists.
-- Admin catalog APIs require OWNER or ADMIN on every request.
-- SUPPORT and FINANCE roles do not receive catalog write access.
+## Permission and privacy
+- Owner bootstrap is available only to an authenticated active account and succeeds only while no admin exists.
+- Admin APIs require OWNER or ADMIN on every request.
+- SUPPORT and FINANCE roles do not receive operations-console access.
+- Provider credentials are stored encrypted; API key values are write-only.
 
 ## Verification
 - CI: npm install, npm run typecheck, npm run build.
-- Runtime tests for registration, email verification, login/logout, session expiry, role denial, bootstrap race, and product CRUD are still required before production.
-- Browser verification is pending; no live deployment has been performed.
+- Runtime tests for provider credential encryption, admin role denial, pagination, and connection test remain required before production.
+- Browser verification remains required before public launch.
