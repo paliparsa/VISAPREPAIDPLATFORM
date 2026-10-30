@@ -80,6 +80,13 @@ adminRoutes.delete("/products/:id", async (c) => {
   return c.json({ status: "disabled" });
 });
 
+adminBootstrapRoutes.get("/bootstrap/status", async (c) => {
+  const currentUser = await requireUser(c);
+  if (!currentUser) return c.json({ error: "UNAUTHENTICATED" }, 401);
+  const admin = await c.env.DB.prepare("SELECT 1 AS present FROM admin_users LIMIT 1").first<{ present: number }>();
+  return c.json({ available: !admin && Boolean(c.env.ADMIN_BOOTSTRAP_TOKEN) });
+});
+
 adminBootstrapRoutes.post("/bootstrap", async (c) => {
   if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
   const currentUser = await requireUser(c);
