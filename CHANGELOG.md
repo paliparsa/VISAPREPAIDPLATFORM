@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 - 2026-10-31
+- Add audited admin workflow to manually confirm externally verified payment references on existing orders.
+- Add manual Tremendous fulfillment recording with provider order ID, optional HTTPS delivery URL, and internal note.
+- Add D1 fields for manual payment evidence and manual issuance metadata, with duplicate provider-order protection.
+- Keep customer checkout, customer order history, crypto monitoring, and automatic provider issuance disabled.
+
 ## 0.5.0 - 2026-10-31
 - Add one-time, expiring password-reset tokens and password reset email flow.
 - Allow customers to resend verification links for pending accounts.
