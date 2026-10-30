@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 - 2026-10-31
+- Add customer registration, email verification, login, logout, and seven-day revocable sessions.
+- Hash passwords with PBKDF2-HMAC-SHA-256 and store only HMAC-hashed opaque session and verification tokens.
+- Add normalized-email rate limiting and same-origin checks for state-changing requests.
+- Add one-time authenticated owner bootstrap protected by a Cloudflare secret.
+- Add server-authorized admin product create, edit, list, and reversible disable operations.
+- Add a public enabled-product catalog and Persian RTL account/admin interface.
+- Add D1 migration for sessions, verification tokens, rate limits, and product pricing metadata.
+- Add Resend email adapter and local Vite proxy to the Worker API.
+- Document design, UX, and Cloudflare setup requirements.
+- Keep customer order creation, payment processing, and card issuance disabled.
+
 ## 0.2.1 - 2026-10-31
 - Extend GitHub Actions validation to run the production Vite build after TypeScript checks.
 - Bump package version to 0.2.1.
