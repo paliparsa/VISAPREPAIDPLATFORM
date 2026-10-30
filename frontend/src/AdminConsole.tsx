@@ -97,6 +97,32 @@ export function AdminConsole({ onMessage }: Props) {
     catch (e) { onMessage(e instanceof Error ? e.message : "تست اتصال ناموفق بود.", "error"); } finally { setBusy(false); }
   }
 
+  async function confirmManualPayment(order: any) {
+    const reference = window.prompt("مرجع پرداختی را که خارج از سامانه بررسی کرده‌اید وارد کنید:");
+    if (!reference?.trim()) return;
+    const note = window.prompt("یادداشت بررسی (اختیاری):") || "";
+    setBusy(true);
+    try {
+      await api(`/api/admin/operations/orders/${encodeURIComponent(order.id)}/confirm-payment`, { method: "POST", body: JSON.stringify({ reference: reference.trim(), note }) });
+      onMessage("پرداخت با مرجع ثبت‌شده تأیید شد؛ سفارش وارد صف صدور دستی شد.");
+      await loadOrders(page);
+    } catch (e) { onMessage(e instanceof Error ? e.message : "تأیید پرداخت ناموفق بود.", "error"); }
+    finally { setBusy(false); }
+  }
+  async function recordManualIssuance(order: any) {
+    const providerOrderId = window.prompt("شناسه سفارش صادرشده در داشبورد Tremendous:");
+    if (!providerOrderId?.trim()) return;
+    const deliveryUrl = window.prompt("لینک تحویل امن (اختیاری؛ فقط HTTPS):") || "";
+    const note = window.prompt("یادداشت داخلی (اختیاری):") || "";
+    setBusy(true);
+    try {
+      await api(`/api/admin/operations/orders/${encodeURIComponent(order.id)}/manual-issuance`, { method: "POST", body: JSON.stringify({ providerOrderId: providerOrderId.trim(), deliveryUrl: deliveryUrl.trim(), note }) });
+      onMessage("صدور دستی ثبت شد؛ هیچ تراکنش API ایجاد نشد.");
+      await loadOrders(page);
+    } catch (e) { onMessage(e instanceof Error ? e.message : "ثبت صدور ناموفق بود.", "error"); }
+    finally { setBusy(false); }
+  }
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "نمای کلی" }, { id: "products", label: "محصولات" }, { id: "orders", label: "سفارش‌ها" },
     { id: "customers", label: "مشتریان" }, { id: "provider", label: "اتصال Tremendous" }, { id: "payments", label: "پرداخت‌ها" }, { id: "activity", label: "گزارش فعالیت" }
@@ -117,7 +143,7 @@ export function AdminConsole({ onMessage }: Props) {
     {tab === "overview" && <div className="admin-pane">
       <div className="pane-title"><div><h3>وضعیت سامانه</h3><p>آمار زنده از پایگاه داده</p></div><button className="button button-quiet" onClick={() => void loadOverview()} disabled={loading}>به‌روزرسانی</button></div>
       <div className="ops-stats">{stats.map(([label, value, hint]) => <article className="stat-card" key={String(label)}><small>{label}</small><strong>{number(value)}</strong><span>{hint}</span></article>)}</div>
-      <div className="ops-callout"><b>وضعیت عملیاتی</b><p>این داشبورد رکوردهای موجود را نمایش می‌دهد. سفارش‌گیری، تأیید پرداخت و صدور خودکار هنوز به یک جریان کامل متصل نیستند.</p></div>
+      <div className="ops-callout"><b>وضعیت عملیاتی</b><p>پرداخت را فقط پس از بررسی مستقل مرجع تراکنش تأیید کنید. سپس سفارش را در داشبورد Tremendous به‌صورت دستی صادر و شناسه آن را اینجا ثبت کنید. هیچ پرداخت یا صدوری به‌صورت خودکار انجام نمی‌شود.</p></div>
     </div>}
 
     {tab === "products" && <div className="admin-pane">
@@ -141,9 +167,9 @@ export function AdminConsole({ onMessage }: Props) {
     </div>}
 
     {tab === "orders" && <div className="admin-pane">
-      <div className="pane-title"><div><h3>سفارش‌ها</h3><p>{number(total)} سفارش ثبت‌شده؛ این بخش فعلاً فقط خواندنی است.</p></div></div>
-      <form className="filter-bar" onSubmit={e => { e.preventDefault(); void loadOrders(1, query, status); }} noValidate><input aria-label="جست‌وجوی سفارش" placeholder="شناسه سفارش یا ایمیل…" value={query} onChange={e => setQuery(e.target.value)} /><select aria-label="فیلتر وضعیت" value={status} onChange={e => setStatus(e.target.value)}><option value="">همه وضعیت‌ها</option><option value="PENDING_PAYMENT">در انتظار پرداخت</option><option value="PAID">پرداخت‌شده</option><option value="ISSUING">در حال صدور</option><option value="ISSUED">صادرشده</option><option value="FAILED">ناموفق</option></select><button className="button button-primary">جست‌وجو</button></form>
-      <div className="table-wrap"><table><thead><tr><th>شناسه</th><th>مشتری</th><th>محصول</th><th>مبلغ</th><th>پرداخت</th><th>صدور</th><th>ثبت</th></tr></thead><tbody>{orders.length ? orders.map(order => <tr key={order.id}><td dir="ltr">{order.id.slice(0, 10)}</td><td><strong>{order.recipientName || order.customerEmail}</strong><small className="sub-cell">{order.recipientEmail || order.customerEmail}</small></td><td>{order.productName || "—"}</td><td dir="ltr">{money(order.salePriceMinor)}</td><td><span className="pill">{statusLabel(order.paymentStatus || order.status)}</span></td><td><span className="pill">{statusLabel(order.issuanceStatus || "—")}</span></td><td>{date(order.createdAt)}</td></tr>) : <tr><td colSpan={7} className="empty-cell">{loading ? "در حال بارگذاری…" : "هنوز سفارشی ثبت نشده است."}</td></tr>}</tbody></table></div>
+      <div className="pane-title"><div><h3>سفارش‌ها</h3><p>{number(total)} سفارش ثبت‌شده؛ پرداخت و صدور فقط با تأیید دستی مدیر ثبت می‌شوند؛ هیچ API یا پرداخت خودکاری اجرا نمی‌شود.</p></div></div>
+      <form className="filter-bar" onSubmit={e => { e.preventDefault(); void loadOrders(1, query, status); }} noValidate><input aria-label="جست‌وجوی سفارش" placeholder="شناسه سفارش یا ایمیل…" value={query} onChange={e => setQuery(e.target.value)} /><select aria-label="فیلتر وضعیت" value={status} onChange={e => setStatus(e.target.value)}><option value="">همه وضعیت‌ها</option><option value="PENDING_PAYMENT">در انتظار پرداخت</option><option value="PAID">پرداخت‌شده</option><option value="ISSUING">در حال صدور</option><option value="ISSUED">صادرشده</option><option value="FAILED">ناموفق</option><option value="ISSUED">صادرشده</option></select><button className="button button-primary">جست‌وجو</button></form>
+      <div className="table-wrap"><table><thead><tr><th>شناسه</th><th>مشتری</th><th>محصول</th><th>مبلغ</th><th>پرداخت</th><th>صدور</th><th>مرجع پرداخت</th><th>ثبت</th><th>اقدام دستی</th></tr></thead><tbody>{orders.length ? orders.map(order => <tr key={order.id}><td dir="ltr">{order.id.slice(0, 10)}</td><td><strong>{order.recipientName || order.customerEmail}</strong><small className="sub-cell">{order.recipientEmail || order.customerEmail}</small></td><td>{order.productName || "—"}</td><td dir="ltr">{money(order.salePriceMinor)}</td><td><span className="pill">{statusLabel(order.paymentStatus || order.status)}</span></td><td><span className="pill">{statusLabel(order.issuanceStatus || "—")}</span>{order.providerOrderId && <small className="sub-cell">Tremendous: {order.providerOrderId}</small>}{order.deliveryUrl && <small className="sub-cell">لینک تحویل ثبت شده</small>}</td><td dir="ltr">{order.manualPaymentReference || "—"}</td><td>{date(order.createdAt)}</td><td className="row-actions">{["PENDING_PAYMENT","AWAITING_PAYMENT"].includes(order.status) ? <button className="text-button" disabled={busy} onClick={() => void confirmManualPayment(order)}>تأیید پرداخت</button> : null}{["PAID","ISSUING"].includes(order.status) ? <button className="text-button" disabled={busy} onClick={() => void recordManualIssuance(order)}>ثبت صدور دستی</button> : null}{order.status === "ISSUED" ? <span className="pill pill-on">تکمیل‌شده</span> : null}</td></tr>) : <tr><td colSpan={9} className="empty-cell">{loading ? "در حال بارگذاری…" : "هنوز سفارشی ثبت نشده است."}</td></tr>}</tbody></table></div>
       <div className="pagination"><span>{number(total)} نتیجه</span><div><button className="button button-quiet" disabled={page <= 1 || loading} onClick={() => void loadOrders(page - 1)}>قبلی</button><span>صفحه {number(page)}</span><button className="button button-quiet" disabled={page * 20 >= total || loading} onClick={() => void loadOrders(page + 1)}>بعدی</button></div></div>
     </div>}
 
