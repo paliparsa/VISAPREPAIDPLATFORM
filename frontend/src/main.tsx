@@ -165,29 +165,37 @@ function App() {
       <div className="stats-grid"><article className="stat-card"><small>وضعیت حساب</small><strong>فعال</strong><span>ایمیل تأیید شده</span></article><article className="stat-card"><small>محصولات قابل سفارش</small><strong>{products.length.toLocaleString("fa-IR")}</strong><span>بر اساس کاتالوگ ارائه‌دهنده</span></article><article className="stat-card"><small>ارز پایه</small><strong>USD</strong><span>دلار آمریکا</span></article></div>
       {["OWNER", "ADMIN"].includes(user.role) ? <section className="admin-section">
         <div className="section-heading"><div><div className="kicker"><span /> MANAGEMENT</div><h2>مدیریت کاتالوگ</h2></div></div>
-        <>
-          <form id="product-editor" className="product-editor" onSubmit={saveProduct} noValidate>
-            <div className="editor-title"><h3>{productForm.id ? "ویرایش محصول" : "افزودن محصول"}</h3>{productForm.id && <button type="button" className="text-button" onClick={() => setProductForm(emptyProduct)}>لغو ویرایش</button>}</div>
-            <div className="editor-grid">
-              <label>نام محصول<input value={productForm.name} onChange={e => setProductForm({...productForm,name:e.target.value})} maxLength={100} /></label>
-              <label>شناسه محصول ارائه‌دهنده<input value={productForm.providerProductId} onChange={e => setProductForm({...productForm,providerProductId:e.target.value})} dir="ltr" /></label>
-              <label>ارزش کارت (USD)<input type="number" min="1" step="0.01" value={productForm.faceValue} onChange={e => setProductForm({...productForm,faceValue:e.target.value})} dir="ltr" /></label>
-              <label>قیمت فروش (USD)<input type="number" min="1" step="0.01" value={productForm.salePrice} onChange={e => setProductForm({...productForm,salePrice:e.target.value})} dir="ltr" /></label>
-              <label>ترتیب نمایش<input type="number" min="0" max="10000" value={productForm.sortOrder} onChange={e => setProductForm({...productForm,sortOrder:e.target.value})} dir="ltr" /></label>
-              <label className="wide-field">توضیحات<input value={productForm.description} onChange={e => setProductForm({...productForm,description:e.target.value})} maxLength={500} /></label>
-            </div>
-            <label className="toggle-row"><input type="checkbox" checked={productForm.enabled} onChange={e => setProductForm({...productForm,enabled:e.target.checked})} /> نمایش محصول در کاتالوگ عمومی</label>
-            <div className="editor-actions"><button className="button button-primary" disabled={savingProduct}>{savingProduct ? "در حال ذخیره…" : productForm.id ? "ذخیره تغییرات" : "ایجاد محصول"}</button></div>
-          </form>
-          <div className="table-wrap"><table><thead><tr><th>محصول</th><th>ارزش کارت</th><th>قیمت فروش</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>
-            {products.length ? products.map(product => <tr key={product.id}><td><strong>{product.name}</strong><small className="sub-cell">{product.providerProductId || "Tremendous"}</small></td><td dir="ltr">{money(product.faceValueMinor)}</td><td dir="ltr">{money(product.salePriceMinor)}</td><td><span className={product.enabled ? "pill pill-on" : "pill"}>{product.enabled ? "فعال" : "غیرفعال"}</span></td><td className="row-actions"><button className="text-button" onClick={() => editProduct(product)}>ویرایش</button>{Boolean(product.enabled) && <button className="text-button danger-text" onClick={() => void disableProduct(product)}>غیرفعال‌سازی</button>}</td></tr>) : <tr><td colSpan={5} className="empty-cell">هنوز محصولی ثبت نشده است.</td></tr>}
-          </tbody></table></div>
-          <p className="admin-note">محصولات جدید به‌صورت پیش‌فرض غیرفعال‌اند. فعال‌سازی فقط پس از تأیید شناسه و شرایط محصول در حساب ارائه‌دهنده انجام شود.</p>
-        </> : <form className="bootstrap-panel" onSubmit={bootstrapOwner} noValidate><h3>تبدیل حساب فعلی به مدیر اصلی</h3><p>این عملیات فقط یک‌بار و زمانی انجام می‌شود که هنوز هیچ مدیری در سامانه وجود نداشته باشد. ایمیل حساب فعال فعلی استفاده می‌شود.</p><label>کلید راه‌اندازی مدیر<div className="password-wrap"><input type={showBootstrapToken ? "text" : "password"} value={bootstrapToken} onChange={e => setBootstrapToken(e.target.value)} autoComplete="off" dir="ltr" /><button type="button" className="reveal" onClick={() => setShowBootstrapToken(v => !v)} aria-label={showBootstrapToken ? "مخفی کردن کلید" : "نمایش کلید"}>{showBootstrapToken ? "مخفی" : "نمایش"}</button></div></label><button className="button button-primary" disabled={busy || !bootstrapToken}>فعال‌سازی مدیر اصلی</button></form>}
-      </section> : bootstrapAvailable ? <section className="admin-section"><div className="section-heading"><div><div className="kicker"><span /> FIRST ADMIN</div><h2>راه‌اندازی مدیر اصلی</h2></div></div><form className="bootstrap-panel" onSubmit={bootstrapOwner} noValidate><h3>تبدیل حساب فعلی به مدیر اصلی</h3><p>هنوز مدیری برای سامانه ساخته نشده است. با کلید یک‌بارمصرف Cloudflare می‌توانید حساب تأییدشده خود را به مدیر اصلی تبدیل کنید.</p><label>کلید راه‌اندازی مدیر<input type={showBootstrapToken ? "text" : "password"} value={bootstrapToken} onChange={e => setBootstrapToken(e.target.value)} autoComplete="off" dir="ltr" /><button type="button" className="reveal bootstrap-reveal" onClick={() => setShowBootstrapToken(v => !v)} aria-label={showBootstrapToken ? "مخفی کردن کلید" : "نمایش کلید"}>{showBootstrapToken ? "مخفی" : "نمایش"}</button></label><button className="button button-primary" disabled={busy || !bootstrapToken}>فعال‌سازی مدیر اصلی</button></form></section> : <section className="catalog-section"><div className="section-heading"><div><div className="kicker"><span /> AVAILABLE CARDS</div><h2>کارت‌های قابل سفارش</h2></div><span className="muted-count">{products.length.toLocaleString("fa-IR")} محصول</span></div>
+        <form id="product-editor" className="product-editor" onSubmit={saveProduct} noValidate>
+          <div className="editor-title"><h3>{productForm.id ? "ویرایش محصول" : "افزودن محصول"}</h3>{productForm.id && <button type="button" className="text-button" onClick={() => setProductForm(emptyProduct)}>لغو ویرایش</button>}</div>
+          <div className="editor-grid">
+            <label>نام محصول<input value={productForm.name} onChange={e => setProductForm({...productForm,name:e.target.value})} maxLength={100} /></label>
+            <label>شناسه محصول ارائه‌دهنده<input value={productForm.providerProductId} onChange={e => setProductForm({...productForm,providerProductId:e.target.value})} dir="ltr" /></label>
+            <label>ارزش کارت (USD)<input type="number" min="1" step="0.01" value={productForm.faceValue} onChange={e => setProductForm({...productForm,faceValue:e.target.value})} dir="ltr" /></label>
+            <label>قیمت فروش (USD)<input type="number" min="1" step="0.01" value={productForm.salePrice} onChange={e => setProductForm({...productForm,salePrice:e.target.value})} dir="ltr" /></label>
+            <label>ترتیب نمایش<input type="number" min="0" max="10000" value={productForm.sortOrder} onChange={e => setProductForm({...productForm,sortOrder:e.target.value})} dir="ltr" /></label>
+            <label className="wide-field">توضیحات<input value={productForm.description} onChange={e => setProductForm({...productForm,description:e.target.value})} maxLength={500} /></label>
+          </div>
+          <label className="toggle-row"><input type="checkbox" checked={productForm.enabled} onChange={e => setProductForm({...productForm,enabled:e.target.checked})} /> نمایش محصول در کاتالوگ عمومی</label>
+          <div className="editor-actions"><button className="button button-primary" disabled={savingProduct}>{savingProduct ? "در حال ذخیره…" : productForm.id ? "ذخیره تغییرات" : "ایجاد محصول"}</button></div>
+        </form>
+        <div className="table-wrap"><table><thead><tr><th>محصول</th><th>ارزش کارت</th><th>قیمت فروش</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>
+          {products.length ? products.map(product => <tr key={product.id}><td><strong>{product.name}</strong><small className="sub-cell">{product.providerProductId || "Tremendous"}</small></td><td dir="ltr">{money(product.faceValueMinor)}</td><td dir="ltr">{money(product.salePriceMinor)}</td><td><span className={product.enabled ? "pill pill-on" : "pill"}>{product.enabled ? "فعال" : "غیرفعال"}</span></td><td className="row-actions"><button className="text-button" onClick={() => editProduct(product)}>ویرایش</button>{Boolean(product.enabled) && <button className="text-button danger-text" onClick={() => void disableProduct(product)}>غیرفعال‌سازی</button>}</td></tr>) : <tr><td colSpan={5} className="empty-cell">هنوز محصولی ثبت نشده است.</td></tr>}
+        </tbody></table></div>
+        <p className="admin-note">محصولات جدید به‌صورت پیش‌فرض غیرفعال‌اند. فعال‌سازی فقط پس از تأیید شناسه و شرایط محصول در حساب ارائه‌دهنده انجام شود.</p>
+      </section> : bootstrapAvailable ? <section className="admin-section">
+        <div className="section-heading"><div><div className="kicker"><span /> FIRST ADMIN</div><h2>راه‌اندازی مدیر اصلی</h2></div></div>
+        <form className="bootstrap-panel" onSubmit={bootstrapOwner} noValidate>
+          <h3>تبدیل حساب فعلی به مدیر اصلی</h3>
+          <p>هنوز مدیری برای سامانه ساخته نشده است. با کلید یک‌بارمصرف Cloudflare می‌توانید حساب تأییدشده خود را به مدیر اصلی تبدیل کنید.</p>
+          <label>کلید راه‌اندازی مدیر
+            <div className="password-wrap"><input type={showBootstrapToken ? "text" : "password"} value={bootstrapToken} onChange={e => setBootstrapToken(e.target.value)} autoComplete="off" dir="ltr" /><button type="button" className="reveal" onClick={() => setShowBootstrapToken(v => !v)} aria-label={showBootstrapToken ? "مخفی کردن کلید" : "نمایش کلید"}>{showBootstrapToken ? "مخفی" : "نمایش"}</button></div>
+          </label>
+          <button className="button button-primary" disabled={busy || !bootstrapToken}>فعال‌سازی مدیر اصلی</button>
+        </form>
+      </section> : <section className="catalog-section">
+        <div className="section-heading"><div><div className="kicker"><span /> AVAILABLE CARDS</div><h2>کارت‌های قابل سفارش</h2></div><span className="muted-count">{products.length.toLocaleString("fa-IR")} محصول</span></div>
         {products.length ? <div className="catalog-grid">{products.map(product => <article className="catalog-card" key={product.id}><div className="mini-card"><span>VISA</span><small>PREPAID</small></div><h3>{product.name}</h3><p>{product.description || "کارت مجازی پیش‌پرداخت"}</p><div className="price-row"><span>ارزش کارت</span><b>{money(product.faceValueMinor)}</b></div><div className="price-row sale-price"><span>قیمت</span><b>{money(product.salePriceMinor)}</b></div><span className="coming-soon">سفارش‌دهی به‌زودی فعال می‌شود</span></article>)}</div> : <div className="empty-state"><div className="empty-symbol">V</div><h3>فعلاً محصولی برای نمایش وجود ندارد</h3><p>پس از تأیید محصولات توسط ارائه‌دهنده، کاتالوگ اینجا نمایش داده می‌شود.</p></div>}
       </section>}
-    </section>}
     <footer className="footer"><span>VISA PREPAID PLATFORM</span><span>پرداخت و صدور کارت تابع شرایط ارائه‌دهنده است.</span></footer>
   </main>;
 }
