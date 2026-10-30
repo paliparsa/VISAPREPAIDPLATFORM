@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 - 2026-10-31
+- Add a server-side Tremendous API v2 adapter for Virtual Visa order creation and status retrieval.
+- Use stable external order IDs for provider-side idempotency.
+- Add sandbox/live endpoint selection and configurable funding source/product IDs.
+- Normalize provider order states and document recipient eligibility and name-field limitations.
+- Keep provider issuance disconnected from public routes pending authenticated order and payment workflows.
+
 ## 0.1.1 - 2026-10-31
 - Align `@cloudflare/workers-types` with the Workers types major version expected by current Wrangler 4 releases.
 - Bump package version to 0.1.1.
