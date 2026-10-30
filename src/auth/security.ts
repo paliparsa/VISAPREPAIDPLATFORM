@@ -102,7 +102,10 @@ export function assertSameOrigin<E extends { Bindings: Env }>(c: Context<E>): bo
   const origin = c.req.header("Origin");
   if (!origin) return false;
   try {
-    return new URL(origin).origin === new URL(c.env.APP_BASE_URL).origin;
+    // Compare with the actual public request origin. APP_BASE_URL is used for
+    // outbound links (verification/reset emails) and may differ from the host
+    // currently serving the app (e.g. workers.dev, preview, or custom domain).
+    return new URL(origin).origin === new URL(c.req.url).origin;
   } catch {
     return false;
   }
