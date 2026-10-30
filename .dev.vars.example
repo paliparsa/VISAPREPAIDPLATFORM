@@ -1,7 +1,9 @@
 # Local placeholders only. Copy to .dev.vars; never commit real values.
-SESSION_SECRET=replace-with-long-random-secret
+SESSION_SECRET=replace-with-at-least-32-random-characters
 ENCRYPTION_KEY=replace-with-32-byte-base64-key
+ADMIN_BOOTSTRAP_TOKEN=replace-with-a-long-one-time-bootstrap-secret
 RESEND_API_KEY=
+RESEND_FROM_EMAIL=
 TREMENDOUS_API_KEY=
 TREMENDOUS_MODE=sandbox
 TREMENDOUS_FUNDING_SOURCE_ID=
