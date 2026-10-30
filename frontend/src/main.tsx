@@ -121,7 +121,6 @@ function App() {
     finally { setSavingProduct(false); }
   }
   async function disableProduct(product: Product) {
-    if (!window.confirm(`محصول «${product.name}» غیرفعال شود؟`)) return;
     resetMessages();
     try { await api(`/api/admin/products/${product.id}`, { method: "DELETE" }); setNotice("محصول غیرفعال شد."); await loadProducts(); }
     catch (e) { setError(e instanceof Error ? e.message : "غیرفعال‌سازی ناموفق بود."); }
