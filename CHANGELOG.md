@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 - 2026-10-31
+- Extend GitHub Actions validation to run the production Vite build after TypeScript checks.
+- Bump package version to 0.2.1.
+
 ## 0.2.0 - 2026-10-31
 - Add a server-side Tremendous API v2 adapter for Virtual Visa order creation and status retrieval.
 - Use stable external order IDs for provider-side idempotency.
