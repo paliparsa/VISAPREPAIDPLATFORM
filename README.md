@@ -1,80 +1,56 @@
 # Visa Prepaid Platform
 
-Cloudflare-native platform for a Persian-language virtual prepaid card storefront and operations console. The service is intended for recipients who meet the issuer/provider's actual country and product eligibility requirements.
+Cloudflare-native Persian-language virtual prepaid card storefront and operations console. The service is intended only for recipients who meet the issuer/provider's actual country and product eligibility requirements.
 
 ## Stack
 - Cloudflare Workers + Hono API
-- React + Vite Persian RTL storefront and admin catalog
-- Cloudflare D1 database
-- Cloudflare R2 private object storage
-- Cloudflare Queues + Cron background jobs
-- Planned USDT payment monitoring: TRON/TRC20, Ethereum/ERC20, BNB Smart Chain/BEP20
+- React + Vite Persian RTL storefront and admin console
+- Cloudflare D1 database, R2 private storage, Queues and Cron
 - Resend transactional email
-- Tremendous API v2 provider adapter (sandbox-first; live issuance remains gated)
+- Tremendous API v2 adapter with encrypted admin-managed Sandbox credentials
+- Planned chain integrations: TRON/TRC20, Ethereum/ERC20, BNB Smart Chain/BEP20 (not active)
 
 ## Implemented
-- Customer registration with email verification, sign-in, sign-out, and revocable opaque sessions.
-- Resend verification emails for pending accounts and secure password recovery with one-time 30-minute tokens.
-- Password reset activates a pending account only after the user proves control of its email address; all prior sessions are revoked.
-- PBKDF2-HMAC-SHA-256 password hashing (100,000 iterations); raw session and verification tokens are not stored in D1.
-- Email-scoped authentication rate limiting and same-origin checks for state-changing requests.
-- One-time owner bootstrap requiring an active verified account and a Cloudflare secret.
-- Admin product catalog create/edit/list/disable API, with server-side OWNER/ADMIN checks.
-- Public catalog of enabled products.
-- Persian RTL account and catalog-management UI.
-- Tremendous API v2 adapter for Virtual Visa order creation/status lookup.
-- Native Cloudflare Git integration deployment and Wrangler-managed resource provisioning.
+- Customer registration, email verification, login/logout, revocable sessions, and secure password recovery.
+- Server-authorized OWNER/ADMIN product catalog management with audit events.
+- Operations dashboard with customer/order overview, paginated order and customer lists, provider settings, connection test, payment configuration status, and audit activity.
+- Tremendous API key can be saved by an OWNER/ADMIN; it is encrypted at rest with AES-GCM using the Cloudflare-only `ENCRYPTION_KEY`.
+- Tremendous Sandbox connection test reads funding sources and reports whether they are active and allowed for API orders.
+- Live issuance requires both `TREMENDOUS_MODE=live` and `ISSUANCE_MODE=LIVE_APPROVED`; the admin UI cannot enable it.
 
-## Not implemented yet
+## Not implemented / not enabled
 - Customer order placement and checkout.
-- Crypto deposit address allocation and on-chain payment verification.
-- Automated reconciliation and payment confirmation.
-- Connecting successful payments to Tremendous issuance.
-- Card delivery, customer card/order history, refunds, and production operations monitoring.
+- Crypto deposit address allocation, on-chain payment monitoring, and payment reconciliation.
+- Linking verified customer payments to provider issuance.
+- Customer card delivery/history, refunds, and production monitoring.
 - Full automated unit, integration, and browser tests.
 
-## Provider and eligibility
-See [provider integration setup](docs/provider-integration.md). The API recipient name is metadata and is not a guarantee of a custom cardholder name. Recipient country and product eligibility must be checked against the provider's current rules. A Persian storefront does not imply that all recipient locations are supported.
+## Important provider restriction
+Tremendous production-access documentation lists crypto-related businesses among prohibited business types. Do not use Tremendous for a USDT-funded checkout or enable live issuance unless Tremendous has explicitly approved the exact operating entity and business model in writing. A Persian-language storefront does not change provider eligibility or policy. See [Tremendous production API access](https://developers.tremendous.com/docs/production-api-access).
 
 ## Local development
-1. Install dependencies: `npm install`.
+1. Run `npm install`.
 2. Copy `.dev.vars.example` to `.dev.vars`.
-3. Set a random `SESSION_SECRET` of at least 32 characters, a long random `ADMIN_BOOTSTRAP_TOKEN`, and valid Resend API key/from address.
-4. Create the local D1 database and apply migrations: `npm run db:migrate:local`.
-5. Start the Worker: `npx wrangler dev --port 8787`.
-6. Start the frontend: `npm run dev` (Vite proxies `/api` to port 8787).
+3. Set `SESSION_SECRET`, `ENCRYPTION_KEY` (Base64 for 32 random bytes), `ADMIN_BOOTSTRAP_TOKEN`, and valid Resend settings.
+4. Apply migrations with `npm run db:migrate:local`.
+5. Start the Worker with `npx wrangler dev --port 8787` and the frontend with `npm run dev`.
 
-## Cloudflare Git integration (no Cloudflare credentials in GitHub)
-Connect this repository to the existing Worker from **Cloudflare Dashboard → Workers & Pages → your Worker → Settings → Builds → Connect**. Select this GitHub repository and the `main` branch.
+## Cloudflare deployment
+Connect the repository from **Cloudflare Dashboard → Workers & Pages → Worker → Settings → Builds → Connect**. Use root directory `/`, build command `npm run build`, and deploy command `npm run deploy`. Wrangler provisions declared resources and applies pending D1 migrations.
 
-Use these build settings:
-- Build command: `npm run build`
-- Deploy command: `npm run deploy`
-- Root directory: repository root
-
-Cloudflare Workers Builds authenticates deployments with its own account token. Do not add `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_ACCOUNT_ID` to GitHub Actions. Wrangler provisions the supported D1, R2, and Queue resources declared in `wrangler.jsonc` during deployment. The deploy script then applies pending D1 migrations.
-
-### One-time Worker secrets and variables
-In **Worker → Settings → Variables and Secrets**, add runtime secrets:
-- `SESSION_SECRET`: random value of at least 32 characters.
-- `ADMIN_BOOTSTRAP_TOKEN`: long random one-time owner bootstrap token.
+### Worker secrets
+- `SESSION_SECRET`: random value, at least 32 characters.
+- `ENCRYPTION_KEY`: Base64-encoded 32-byte key; generate with `openssl rand -base64 32`. Required to save API credentials from the admin console.
+- `ADMIN_BOOTSTRAP_TOKEN`: one-time owner bootstrap secret; remove after setup.
 - `RESEND_API_KEY`: Resend API key.
-- `TREMENDOUS_API_KEY`: optional; keep the provider in sandbox mode.
+- `TREMENDOUS_API_KEY`: optional Cloudflare-managed key; Live mode only uses this key in preference to the encrypted Sandbox key.
 
-Add/update runtime variables:
-- `APP_BASE_URL`: the exact HTTPS origin Cloudflare assigned to the Worker, or your custom domain.
-- `RESEND_FROM_EMAIL`: sender address whose domain is verified in Resend.
+### Worker variables
+- `APP_BASE_URL`: exact public HTTPS origin.
 - `APP_ENV`: `production`.
+- `RESEND_FROM_EMAIL`: verified sender address.
+- `TREMENDOUS_MODE`: keep `sandbox`.
+- `ISSUANCE_MODE`: keep `MANUAL_APPROVAL`.
+- `ENABLED_CHAINS`: informational until payment monitoring is implemented.
 
-These are configured once in Cloudflare, not in GitHub. `keep_vars: true` prevents Wrangler deployments from overwriting dashboard-managed variables. Secrets are retained across deployments.
-
-### First administrator
-1. Register a normal account.
-2. Verify the email using the Resend message.
-3. Sign in.
-4. Open **راه‌اندازی مدیر** in the account UI.
-5. Enter `ADMIN_BOOTSTRAP_TOKEN` once.
-6. After successful owner creation, delete `ADMIN_BOOTSTRAP_TOKEN` from Worker secrets. The owner bootstrap endpoint is one-time at database level.
-
-## Launch safety
-Never commit credentials, wallet seed phrases, or private keys. Keep Tremendous in sandbox until provider approval, recipient eligibility enforcement, legal/compliance review, and end-to-end testing are complete. This infrastructure workflow does not enable live crypto processing or card issuance.
+Cloudflare-managed secrets are never committed to GitHub. `keep_vars: true` preserves dashboard-managed variables across deploys.
