@@ -6,25 +6,28 @@ type User = { id: string; email: string; role: string };
 type Product = { id: string; name: string; description: string | null; currency: string; faceValueMinor: number; salePriceMinor: number; providerProductId?: string; enabled?: number; sortOrder?: number };
 type ProductForm = { id?: string; name: string; description: string; providerProductId: string; faceValue: string; salePrice: string; sortOrder: string; enabled: boolean };
 const emptyProduct: ProductForm = { name: "", description: "", providerProductId: "V4QZ00F554D3", faceValue: "25", salePrice: "29", sortOrder: "0", enabled: false };
-class ApiError extends Error { constructor(message: string, readonly status: number) { super(message); } }
+class ApiError extends Error { constructor(message: string, readonly status: number, readonly code?: string) { super(message); } }
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, credentials: "same-origin", headers: { "Content-Type": "application/json", ...(init.headers || {}) } });
   const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
-  if (!response.ok) throw new ApiError(typeof payload.message === "string" ? payload.message : response.status === 401 ? "برای ادامه وارد حساب شوید." : response.status === 403 ? "اجازه دسترسی به این بخش را ندارید." : "درخواست انجام نشد. دوباره تلاش کنید.", response.status);
+  if (!response.ok) throw new ApiError(typeof payload.message === "string" ? payload.message : response.status === 401 ? "برای ادامه وارد حساب شوید." : response.status === 403 ? "اجازه دسترسی به این بخش را ندارید." : "درخواست انجام نشد. دوباره تلاش کنید.", response.status, typeof payload.error === "string" ? payload.error : undefined);
   return payload as T;
 }
 const money = (minor: number) => new Intl.NumberFormat("fa-IR", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(minor / 100);
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot" | "reset">("login");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [canResendVerification, setCanResendVerification] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -50,7 +53,10 @@ function App() {
   useEffect(() => {
     let alive = true;
     async function initialize() {
-      const verifyToken = new URLSearchParams(window.location.search).get("verify");
+      const params = new URLSearchParams(window.location.search);
+      const verifyToken = params.get("verify");
+      const passwordResetToken = params.get("reset");
+      if (passwordResetToken) { if (alive) { setResetToken(passwordResetToken); setMode("reset"); } window.history.replaceState({}, "", window.location.pathname); }
       if (verifyToken) {
         try {
           const result = await api<{ message: string }>("/api/auth/verify", { method: "POST", body: JSON.stringify({ token: verifyToken }) });
@@ -73,22 +79,31 @@ function App() {
     } else setBootstrapAvailable(false);
   }, [user]);
 
-  function resetMessages() { setError(""); setNotice(""); }
+  function resetMessages() { setError(""); setNotice(""); setCanResendVerification(false); }
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); resetMessages();
-    if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) { setError("یک ایمیل معتبر وارد کنید."); return; }
+    if (mode !== "reset" && (!email.trim() || !/^\\S+@\\S+\\.\\S+$/.test(email.trim()))) { setError("یک ایمیل معتبر وارد کنید."); return; }
     if (mode === "register" && (!firstName.trim() || !lastName.trim())) { setError("نام و نام خانوادگی را وارد کنید."); return; }
-    if (mode === "register" && password.length < 12) { setError("رمز عبور باید حداقل ۱۲ کاراکتر داشته باشد."); return; }
+    if ((mode === "register" || mode === "reset") && password.length < 12) { setError("رمز عبور باید حداقل ۱۲ کاراکتر داشته باشد."); return; }
+    if (mode === "reset" && password !== confirmPassword) { setError("تکرار رمز عبور با رمز جدید یکسان نیست."); return; }
     setBusy(true);
     try {
       if (mode === "register") {
         const result = await api<{ message: string }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password, firstName, lastName }) });
-        setNotice(result.message); setMode("login"); setPassword("");
-      } else {
-        await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
-        await refreshUser(); setPassword("");
-      }
-    } catch (e) { setError(e instanceof Error ? e.message : "درخواست انجام نشد."); }
+        setNotice(result.message); setMode("login"); setPassword(""); setCanResendVerification(true);
+      } else if (mode === "forgot") {
+        const result = await api<{ message: string }>("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }); setNotice(result.message);
+      } else if (mode === "reset") {
+        const result = await api<{ message: string }>("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token: resetToken, password }) });
+        setNotice(result.message); setMode("login"); setPassword(""); setConfirmPassword(""); setResetToken("");
+      } else { await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }); await refreshUser(); setPassword(""); }
+    } catch (e) { setError(e instanceof Error ? e.message : "درخواست انجام نشد."); if (e instanceof ApiError && e.code === "EMAIL_NOT_VERIFIED") setCanResendVerification(true); }
+    finally { setBusy(false); }
+  }
+  async function resendVerification() {
+    resetMessages(); setBusy(true);
+    try { const result = await api<{ message: string }>("/api/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) }); setNotice(result.message); }
+    catch (e) { setError(e instanceof Error ? e.message : "ارسال ایمیل ناموفق بود."); }
     finally { setBusy(false); }
   }
   async function logout() {
