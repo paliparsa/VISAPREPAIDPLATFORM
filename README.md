@@ -14,6 +14,8 @@ Cloudflare-native platform for a Persian-language virtual prepaid card storefron
 
 ## Implemented
 - Customer registration with email verification, sign-in, sign-out, and revocable opaque sessions.
+- Resend verification emails for pending accounts and secure password recovery with one-time 30-minute tokens.
+- Password reset activates an unverified account only after the user proves control of its email address; all prior sessions are revoked.
 - PBKDF2-HMAC-SHA-256 password hashing (100,000 iterations); raw session and verification tokens are not stored in D1.
 - Email-scoped authentication rate limiting and same-origin checks for state-changing requests.
 - One-time owner bootstrap requiring an active verified account and a Cloudflare secret.
