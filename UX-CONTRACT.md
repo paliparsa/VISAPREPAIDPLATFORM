@@ -36,6 +36,7 @@
 - Auth errors are generic for invalid credentials.
 - Product create/edit returns to the catalog list and shows inline success/error feedback.
 - Product disable is a reversible soft-disable; editing can re-enable it.
+- Product create/edit/disable operations write actor, action, entity, and non-sensitive change metadata to audit_logs.
 - All privileged API operations are enforced server-side; hiding admin UI is not authorization.
 
 ## Flow ledger
