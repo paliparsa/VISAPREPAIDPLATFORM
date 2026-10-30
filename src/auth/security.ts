@@ -55,7 +55,9 @@ export async function verifyPassword(password: string, stored: string): Promise<
     const salt = fromBase64Url(saltText);
     const expected = fromBase64Url(expectedText);
     const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-    const actual = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 100_000 }, key, 256));
+    const saltBuffer = new ArrayBuffer(salt.byteLength);
+    new Uint8Array(saltBuffer).set(salt);
+    const actual = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: saltBuffer, iterations: 100_000 }, key, 256));
     return constantTimeEqual(actual, expected);
   } catch {
     return false;
@@ -96,7 +98,7 @@ export function readCookie(request: Request, name: string): string | null {
   return null;
 }
 
-export function assertSameOrigin(c: Context<{ Bindings: Env }>): boolean {
+export function assertSameOrigin<E extends { Bindings: Env }>(c: Context<E>): boolean {
   const origin = c.req.header("Origin");
   if (!origin) return false;
   try {
@@ -120,7 +122,7 @@ export async function enforceRateLimit(env: Env, key: string): Promise<boolean> 
   return (row?.attempts ?? RATE_LIMIT + 1) <= RATE_LIMIT;
 }
 
-export async function getCurrentUser(c: Context<{ Bindings: Env }>): Promise<CurrentUser | null> {
+export async function getCurrentUser<E extends { Bindings: Env }>(c: Context<E>): Promise<CurrentUser | null> {
   const token = readCookie(c.req.raw, cookieName(c.env));
   if (!token) return null;
   const tokenHash = await hashOpaqueToken(token, c.env.SESSION_SECRET);
@@ -136,13 +138,13 @@ export async function getCurrentUser(c: Context<{ Bindings: Env }>): Promise<Cur
   return row ?? null;
 }
 
-export async function requireUser(c: Context<{ Bindings: Env }>): Promise<CurrentUser | null> {
+export async function requireUser<E extends { Bindings: Env }>(c: Context<E>): Promise<CurrentUser | null> {
   const user = await getCurrentUser(c);
   if (!user) return null;
   return user;
 }
 
-export async function requireAdmin(c: Context<{ Bindings: Env }>): Promise<CurrentUser | null> {
+export async function requireAdmin<E extends { Bindings: Env }>(c: Context<E>): Promise<CurrentUser | null> {
   const user = await getCurrentUser(c);
   if (!user || !["OWNER", "ADMIN"].includes(user.role)) return null;
   return user;
