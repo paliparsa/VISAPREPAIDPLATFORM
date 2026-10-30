@@ -35,7 +35,7 @@
     "crons": ["*/2 * * * *"]
   },
   "vars": {
-    "APP_ENV": "production",
+    "APP_ENV": "development",
     "APP_BASE_URL": "http://localhost:5173",
     "DEFAULT_CURRENCY": "USD",
     "ENABLED_CHAINS": "TRON,ETHEREUM,BSC",
