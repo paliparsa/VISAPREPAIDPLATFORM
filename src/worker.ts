@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import type { Env } from "./types";
 import { healthRoutes } from "./api/health";
 import { authRoutes } from "./auth/routes";
-import { adminRoutes } from "./api/admin";
+import { adminBootstrapRoutes, adminRoutes } from "./api/admin";
 import { catalogRoutes } from "./api/catalog";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -18,6 +18,7 @@ app.use("/api/*", cors({
 }));
 app.route("/api", healthRoutes);
 app.route("/api/auth", authRoutes);
+app.route("/api/admin", adminBootstrapRoutes);
 app.route("/api/admin", adminRoutes);
 app.route("/api/catalog", catalogRoutes);
 app.notFound((c) => c.json({ error: "NOT_FOUND" }, 404));
