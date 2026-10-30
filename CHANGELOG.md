@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 - 2026-10-31
+- Replace credential-based GitHub Actions deployment with native Cloudflare Workers Git integration.
+- Remove Cloudflare account ID/API token requirements from GitHub.
+- Let Wrangler automatically provision supported D1, R2, and Queue resources from the Worker configuration.
+- Run remote D1 migrations after the first successful deploy so the database exists before migration.
+- Preserve dashboard-managed Worker variables and secrets across deployments.
+- Keep GitHub Actions for validation only.
+- Bump package version to 0.5.0.
+
 ## 0.4.0 - 2026-10-31
 - Add idempotent Cloudflare provisioning for D1, R2, primary Queue, and dead-letter Queue.
 - Generate a temporary Wrangler config with the discovered D1 database ID; do not commit account-specific IDs.
@@ -25,7 +34,7 @@
 - Bump package version to 0.2.1.
 
 ## 0.2.0 - 2026-10-31
-- Add a server-side Tremendous API v2 adapter for Virtual Visa order creation and status retrieval.
+- Add a server-side Tremendous API v2 adapter for Virtual Visa order creation/status retrieval.
 - Use stable external order IDs for provider-side idempotency.
 - Add sandbox/live endpoint selection and configurable funding source/product IDs.
 - Normalize provider order states and document recipient eligibility and name-field limitations.
