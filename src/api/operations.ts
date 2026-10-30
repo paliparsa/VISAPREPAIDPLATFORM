@@ -184,3 +184,50 @@ operationsRoutes.post("/provider/test", async (c) => {
   }));
   return c.json({ connected: true, mode: config.mode, fundingSources: sources });
 });
+
+
+// Manual operations: no provider API call is made by either action below.
+operationsRoutes.post("/orders/:id/confirm-payment", async (c) => {
+  if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  const orderId = c.req.param("id").slice(0, 100);
+  const body = await c.req.json<{ reference?: unknown; note?: unknown }>().catch(() => null);
+  const reference = typeof body?.reference === "string" ? body.reference.trim().slice(0, 160) : "";
+  const note = typeof body?.note === "string" ? body.note.trim().slice(0, 500) : "";
+  if (reference.length < 3) return c.json({ error: "PAYMENT_REFERENCE_REQUIRED", message: "شناسه یا مرجع قابل استناد پرداخت را وارد کنید." }, 400);
+  const actor = c.get("adminUser");
+  const current = await c.env.DB.prepare("SELECT id,status FROM orders WHERE id=? LIMIT 1").bind(orderId).first<{id:string;status:string}>();
+  if (!current) return c.json({ error: "ORDER_NOT_FOUND" }, 404);
+  if (current.status !== "PENDING_PAYMENT" && current.status !== "AWAITING_PAYMENT") return c.json({ error: "ORDER_STATE_CONFLICT", message: "این سفارش در وضعیت قابل تأیید پرداخت نیست." }, 409);
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE orders SET status='PAID',manual_payment_reference=?,manual_payment_note=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('PENDING_PAYMENT','AWAITING_PAYMENT')").bind(reference, note || null, orderId),
+    c.env.DB.prepare("UPDATE payments SET status='MANUALLY_CONFIRMED' WHERE order_id=? AND status IN ('AWAITING','PENDING','CONFIRMING')").bind(orderId),
+    c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) VALUES(?, 'PAYMENT_MANUALLY_CONFIRMED','ORDER',?,?)").bind(actor.id, orderId, JSON.stringify({ reference, note }))
+  ]);
+  const updated = await c.env.DB.prepare("SELECT status FROM orders WHERE id=?").bind(orderId).first<{status:string}>();
+  if (updated?.status !== "PAID") return c.json({ error: "ORDER_STATE_CONFLICT", message: "وضعیت سفارش هم‌زمان تغییر کرده است؛ صفحه را تازه کنید." }, 409);
+  return c.json({ status: "PAID", message: "پرداخت با ثبت مرجع و تأیید مدیر ثبت شد." });
+});
+
+operationsRoutes.post("/orders/:id/manual-issuance", async (c) => {
+  if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  const orderId = c.req.param("id").slice(0, 100);
+  const body = await c.req.json<{ providerOrderId?: unknown; deliveryUrl?: unknown; note?: unknown }>().catch(() => null);
+  const providerOrderId = typeof body?.providerOrderId === "string" ? body.providerOrderId.trim().slice(0, 160) : "";
+  const deliveryUrl = typeof body?.deliveryUrl === "string" ? body.deliveryUrl.trim().slice(0, 1000) : "";
+  const note = typeof body?.note === "string" ? body.note.trim().slice(0, 500) : "";
+  if (!providerOrderId) return c.json({ error: "PROVIDER_ORDER_ID_REQUIRED", message: "شناسه سفارش صادرشده در Tremendous الزامی است." }, 400);
+  if (deliveryUrl) { try { const url = new URL(deliveryUrl); if (url.protocol !== "https:") throw new Error(); } catch { return c.json({ error: "INVALID_DELIVERY_URL", message: "لینک تحویل باید یک آدرس HTTPS معتبر باشد." }, 400); } }
+  const actor = c.get("adminUser");
+  const order = await c.env.DB.prepare("SELECT id,status FROM orders WHERE id=? LIMIT 1").bind(orderId).first<{id:string;status:string}>();
+  if (!order) return c.json({ error: "ORDER_NOT_FOUND" }, 404);
+  if (order.status !== "PAID" && order.status !== "ISSUING") return c.json({ error: "ORDER_NOT_PAID", message: "ابتدا پرداخت سفارش را پس از بررسی مستقل تأیید کنید." }, 409);
+  const attemptId = crypto.randomUUID();
+  const externalId = `manual_${crypto.randomUUID()}`;
+  const results = await c.env.DB.batch([
+    c.env.DB.prepare("INSERT INTO issuance_attempts(id,order_id,provider,external_id,provider_order_id,status,delivery_url,admin_note,processed_by,updated_at) VALUES(?,?,'TREMENDOUS_MANUAL',?,?, 'ISSUED',?,?,?,CURRENT_TIMESTAMP)").bind(attemptId, orderId, externalId, providerOrderId, deliveryUrl || null, note || null, actor.id),
+    c.env.DB.prepare("UPDATE orders SET status='ISSUED',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('PAID','ISSUING')").bind(orderId),
+    c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) VALUES(?, 'MANUAL_CARD_ISSUED','ORDER',?,?)").bind(actor.id, orderId, JSON.stringify({ provider: "TREMENDOUS_MANUAL", providerOrderId, deliveryUrl: Boolean(deliveryUrl), note }))
+  ]);
+  if ((results[1].meta.changes ?? 0) !== 1) return c.json({ error: "ORDER_STATE_CONFLICT", message: "وضعیت سفارش هم‌زمان تغییر کرده است؛ صفحه را تازه کنید." }, 409);
+  return c.json({ status: "ISSUED", message: "صدور دستی ثبت شد. هیچ درخواست API به Tremendous ارسال نشد." });
+});
