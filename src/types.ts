@@ -1,0 +1,8 @@
+export interface Env {
+ DB: D1Database; JOBS: Queue; PRIVATE_FILES: R2Bucket; ASSETS: Fetcher;
+ APP_ENV: string; APP_BASE_URL: string; DEFAULT_CURRENCY: string;
+ ENABLED_CHAINS: string; ISSUANCE_MODE: string; TREMENDOUS_MODE: string;
+ SESSION_SECRET: string; ENCRYPTION_KEY: string; RESEND_API_KEY: string;
+ TREMENDOUS_API_KEY: string; TREMENDOUS_WEBHOOK_SECRET: string;
+ TRON_RPC_URL: string; ETHEREUM_RPC_URL: string; BSC_RPC_URL: string;
+}
