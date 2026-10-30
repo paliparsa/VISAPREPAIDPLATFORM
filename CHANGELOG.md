@@ -5,7 +5,7 @@
 - Hash passwords with PBKDF2-HMAC-SHA-256 and store only HMAC-hashed opaque session and verification tokens.
 - Add normalized-email rate limiting and same-origin checks for state-changing requests.
 - Add one-time authenticated owner bootstrap protected by a Cloudflare secret.
-- Add server-authorized admin product create, edit, list, and reversible disable operations.
+- Add server-authorized admin product create, edit, list, and reversible disable operations with audit-log entries.
 - Add a public enabled-product catalog and Persian RTL account/admin interface.
 - Add D1 migration for sessions, verification tokens, rate limits, and product pricing metadata.
 - Add Resend email adapter and local Vite proxy to the Worker API.
