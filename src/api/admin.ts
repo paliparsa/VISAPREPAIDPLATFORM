@@ -3,6 +3,7 @@ import type { Env } from "../types";
 import { assertSameOrigin, constantTimeEqual, requireAdmin } from "../auth/security";
 
 export const adminRoutes = new Hono<{ Bindings: Env }>();
+export const adminBootstrapRoutes = new Hono<{ Bindings: Env }>();
 
 async function validBootstrapToken(provided: string, expected: string): Promise<boolean> {
   if (!provided || !expected) return false;
@@ -14,21 +15,6 @@ async function validBootstrapToken(provided: string, expected: string): Promise<
   return constantTimeEqual(new Uint8Array(a), new Uint8Array(b));
 }
 
-adminRoutes.post("/bootstrap", async (c) => {
-  if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
-  const body = await c.req.json<{ email?: unknown; token?: unknown }>().catch(() => null);
-  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-  const token = typeof body?.token === "string" ? body.token : "";
-  if (!await validBootstrapToken(token, c.env.ADMIN_BOOTSTRAP_TOKEN || "")) return c.json({ error: "BOOTSTRAP_NOT_ALLOWED" }, 403);
-  const result = await c.env.DB.prepare(`
-    INSERT INTO admin_users (user_id, role)
-    SELECT id, 'OWNER' FROM users
-    WHERE email=? AND status='ACTIVE'
-      AND NOT EXISTS (SELECT 1 FROM admin_users)
-  `).bind(email).run();
-  if ((result.meta.changes ?? 0) !== 1) return c.json({ error: "BOOTSTRAP_UNAVAILABLE", message: "حساب فعال پیدا نشد یا مدیر اصلی قبلاً ساخته شده است." }, 409);
-  return c.json({ status: "OWNER_CREATED", message: "دسترسی مدیر اصلی فعال شد. دوباره وارد حساب شوید." }, 201);
-});
 
 function validateProduct(body: Record<string, unknown>) {
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 100) : "";
@@ -47,7 +33,6 @@ function validateProduct(body: Record<string, unknown>) {
 adminRoutes.use("/*", async (c, next) => {
   const user = await requireAdmin(c);
   if (!user) return c.json({ error: "FORBIDDEN", message: "دسترسی مدیر لازم است." }, 403);
-  c.set("adminUser", user);
   await next();
 });
 
@@ -93,4 +78,20 @@ adminRoutes.delete("/products/:id", async (c) => {
     .bind(c.req.param("id")).run();
   if ((result.meta.changes ?? 0) !== 1) return c.json({ error: "PRODUCT_NOT_FOUND" }, 404);
   return c.json({ status: "disabled" });
+});
+
+adminBootstrapRoutes.post("/bootstrap", async (c) => {
+  if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  const body = await c.req.json<{ email?: unknown; token?: unknown }>().catch(() => null);
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const token = typeof body?.token === "string" ? body.token : "";
+  if (!await validBootstrapToken(token, c.env.ADMIN_BOOTSTRAP_TOKEN || "")) return c.json({ error: "BOOTSTRAP_NOT_ALLOWED" }, 403);
+  const result = await c.env.DB.prepare(`
+    INSERT INTO admin_users (user_id, role)
+    SELECT id, 'OWNER' FROM users
+    WHERE email=? AND status='ACTIVE'
+      AND NOT EXISTS (SELECT 1 FROM admin_users)
+  `).bind(email).run();
+  if ((result.meta.changes ?? 0) !== 1) return c.json({ error: "BOOTSTRAP_UNAVAILABLE", message: "حساب فعال پیدا نشد یا مدیر اصلی قبلاً ساخته شده است." }, 409);
+  return c.json({ status: "OWNER_CREATED", message: "دسترسی مدیر اصلی فعال شد. دوباره وارد حساب شوید." }, 201);
 });
