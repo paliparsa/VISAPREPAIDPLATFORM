@@ -21,6 +21,7 @@ Cloudflare-native platform for a Persian-language virtual prepaid card storefron
 - Public catalog of enabled products.
 - Persian RTL account and catalog-management UI.
 - Tremendous API v2 adapter for Virtual Visa order creation/status lookup.
+- Native Cloudflare Git integration deployment and Wrangler-managed resource provisioning.
 
 ## Not implemented yet
 - Customer order placement and checkout.
@@ -34,33 +35,44 @@ Cloudflare-native platform for a Persian-language virtual prepaid card storefron
 See [provider integration setup](docs/provider-integration.md). The API recipient name is metadata and is not a guarantee of a custom cardholder name. Recipient country and product eligibility must be checked against the provider's current rules. A Persian storefront does not imply that all recipient locations are supported.
 
 ## Local development
-
-1. Install dependencies: `npm install`
+1. Install dependencies: `npm install`.
 2. Copy `.dev.vars.example` to `.dev.vars`.
 3. Set a random `SESSION_SECRET` of at least 32 characters, a long random `ADMIN_BOOTSTRAP_TOKEN`, and valid Resend API key/from address.
 4. Create the local D1 database and apply migrations: `npm run db:migrate:local`.
-5. Start the Worker in one terminal: `npx wrangler dev --port 8787`.
-6. Start the frontend in another terminal: `npm run dev` (Vite proxies `/api` to port 8787).
+5. Start the Worker: `npx wrangler dev --port 8787`.
+6. Start the frontend: `npm run dev` (Vite proxies `/api` to port 8787).
 
-## Cloudflare setup
-- Create the D1, R2, and Queue resources referenced by `wrangler.jsonc`.
-- Replace the D1 database ID placeholder.
-- Set Worker secrets: `SESSION_SECRET`, `ADMIN_BOOTSTRAP_TOKEN`, `RESEND_API_KEY`, `TREMENDOUS_API_KEY` (when ready).
-- Set Worker variables: `APP_BASE_URL` to the exact HTTPS production origin, `APP_ENV=production`, `RESEND_FROM_EMAIL`, `TREMENDOUS_MODE=sandbox`, and the funding/product IDs when provider access is approved.
-- Apply remote migrations with `npm run db:migrate:remote`.
-- Deploy only after CI passes and resource bindings/secrets are configured.
+## Cloudflare Git integration (no Cloudflare credentials in GitHub)
+Connect this repository to the existing Worker from **Cloudflare Dashboard → Workers & Pages → your Worker → Settings → Builds → Connect**. Select this GitHub repository and the `main` branch.
 
-Never commit credentials, wallet seed phrases, or private keys. Never enable real card issuance or crypto payments before provider approval, eligibility enforcement, legal/compliance review, and end-to-end testing.
+Use these build settings:
+- Build command: `npm run build`
+- Deploy command: `npm run deploy`
+- Root directory: repository root
 
-See [authentication and admin setup](docs/auth-and-admin-setup.md) for required secrets, migration steps, and the first-owner bootstrap process.
+Cloudflare Workers Builds authenticates deployments with its own account token. Do not add `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_ACCOUNT_ID` to GitHub Actions. Wrangler provisions the supported D1, R2, and Queue resources declared in `wrangler.jsonc` during deployment. The deploy script then applies pending D1 migrations.
 
-## First administrator
+### One-time Worker secrets and variables
+In **Worker → Settings → Variables and Secrets**, add runtime secrets:
+- `SESSION_SECRET`: random value of at least 32 characters.
+- `ADMIN_BOOTSTRAP_TOKEN`: long random one-time owner bootstrap token.
+- `RESEND_API_KEY`: Resend API key.
+- `TREMENDOUS_API_KEY`: optional; keep the provider in sandbox mode.
+
+Add/update runtime variables:
+- `APP_BASE_URL`: the exact HTTPS origin Cloudflare assigned to the Worker, or your custom domain.
+- `RESEND_FROM_EMAIL`: sender address whose domain is verified in Resend.
+- `APP_ENV`: `production`.
+
+These are configured once in Cloudflare, not in GitHub. `keep_vars: true` prevents Wrangler deployments from overwriting dashboard-managed variables. Secrets are retained across deployments.
+
+### First administrator
 1. Register a normal account.
 2. Verify the email using the Resend message.
 3. Sign in.
 4. Open **راه‌اندازی مدیر** in the account UI.
-5. Enter `ADMIN_BOOTSTRAP_TOKEN` once. This succeeds only if no admin account exists.
-6. Remove/rotate `ADMIN_BOOTSTRAP_TOKEN` in Cloudflare after the owner is created.
+5. Enter `ADMIN_BOOTSTRAP_TOKEN` once.
+6. After successful owner creation, delete `ADMIN_BOOTSTRAP_TOKEN` from Worker secrets. The owner bootstrap endpoint is one-time at database level.
 
-## Validation
-GitHub Actions runs `npm install`, `npm run typecheck`, and `npm run build`.
+## Launch safety
+Never commit credentials, wallet seed phrases, or private keys. Keep Tremendous in sandbox until provider approval, recipient eligibility enforcement, legal/compliance review, and end-to-end testing are complete. This infrastructure workflow does not enable live crypto processing or card issuance.
