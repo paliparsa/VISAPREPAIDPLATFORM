@@ -12,3 +12,6 @@ TREMENDOUS_WEBHOOK_SECRET=
 TRON_RPC_URL=
 ETHEREUM_RPC_URL=
 BSC_RPC_URL=
+
+# Shared HMAC secret used only for Gateway-to-Worker webhook forwarding (32+ chars)
+GATEWAY_SHARED_SECRET=
