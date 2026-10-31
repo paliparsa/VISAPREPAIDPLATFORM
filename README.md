@@ -52,13 +52,13 @@ Connect the repository from **Cloudflare Dashboard → Workers & Pages → Worke
 - `ADMIN_BOOTSTRAP_TOKEN`: one-time owner bootstrap secret; remove after setup.
 - `RESEND_API_KEY`: Resend API key.
 - `TREMENDOUS_API_KEY`: optional Cloudflare-managed key; Live mode only uses this key in preference to the encrypted Sandbox key.
+- `GATEWAY_SHARED_SECRET`: random secret of at least 32 characters, shared only with the Gateway `UPSTREAM_SECRET`.
 
 ### Worker variables
 - `APP_BASE_URL`: exact public HTTPS origin.
 - `APP_ENV`: `production`.
 - `RESEND_FROM_EMAIL`: verified sender address.
 - `TREMENDOUS_MODE`: keep `sandbox`.
-- `GATEWAY_SHARED_SECRET`: same random 32+ character secret configured as the Gateway `UPSTREAM_SECRET`; required for authenticated webhook forwarding.
 - `ISSUANCE_MODE`: keep `MANUAL_APPROVAL`.
 - `ENABLED_CHAINS`: informational until payment monitoring is implemented.
 
