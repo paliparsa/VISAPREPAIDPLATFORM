@@ -8,8 +8,6 @@
 - Clarify the provider connection as webhook-only; no API calls, provider order creation, refunds, or automated issuance are enabled.
 - Preserve manual payment verification and manual fulfillment safeguards.
 
-# Changelog
-
 ## 0.7.0 - 2026-10-31
 - Add a signed, idempotent Tremendous Gateway receiver endpoint in the main Worker.
 - Persist provider webhook events, correlate order events to existing issuance attempts, and expose webhook activity in the admin console.
