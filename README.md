@@ -14,6 +14,7 @@ Cloudflare-native Persian-language virtual prepaid card storefront and operation
 - Customer registration, email verification, login/logout, revocable sessions, and secure password recovery.
 - Server-authorized OWNER/ADMIN product catalog management with audit events.
 - Operations dashboard with customer/order overview, paginated order and customer lists, provider settings, connection test, payment configuration status, and audit activity.
+- Signed Tremendous Gateway webhook receiver with idempotent event persistence, order correlation, provider-status tracking, and an admin webhook activity view.
 - Audited manual fulfillment for existing orders: admins can record independently verified payment references, then record a Tremendous dashboard order ID, optional HTTPS delivery link, and internal note. The flow never calls Tremendous to create a reward.
 - Tremendous API key can be saved by an OWNER/ADMIN; it is encrypted at rest with AES-GCM using the Cloudflare-only `ENCRYPTION_KEY`.
 - Tremendous Sandbox connection test reads funding sources and reports whether they are active and allowed for API orders.
@@ -23,11 +24,17 @@ Cloudflare-native Persian-language virtual prepaid card storefront and operation
 - Crypto deposit address allocation, on-chain payment monitoring, and payment reconciliation.
 - Customer order placement and checkout (therefore the manual workflow currently applies only to order records already present in D1).
 - Customer-facing order history and card-delivery display.
-- Automated linking of verified customer payments to provider issuance.
+- Automated customer payment verification and payment-to-issuance linking.
 - Full automated unit, integration, and browser tests.
 
 ## Important provider restriction
 Tremendous production-access documentation lists crypto-related businesses among prohibited business types. Do not use Tremendous for a USDT-funded checkout or enable live issuance unless Tremendous has explicitly approved the exact operating entity and business model in writing. A Persian-language storefront does not change provider eligibility or policy. See [Tremendous production API access](https://developers.tremendous.com/docs/production-api-access).
+
+## Tremendous Gateway connection
+
+The main Worker receives Gateway-forwarded events at `POST /api/internal/webhooks/tremendous`. Configure the Gateway Worker with `UPSTREAM_URL=https://YOUR_MAIN_APP_HOST/api/internal/webhooks/tremendous` and `UPSTREAM_SECRET` equal to this Worker's `GATEWAY_SHARED_SECRET`. The Gateway signs the exact raw JSON body with HMAC-SHA256 and sends `X-Tremendous-Gateway-Signature: sha256=...` plus `Idempotency-Key` equal to the Tremendous webhook UUID. Never expose this shared secret in the browser or commit it to Git.
+
+The receiver only correlates `ORDERS.*` events whose resource type is `orders` with a previously recorded provider order ID. It records all valid event IDs for deduplication. Unknown event types are retained as ignored, and order events without a matching issuance record are retained as unmatched. `ORDERS.CANCELED` and `ORDERS.FAILED` can mark a matched order failed; created/approved events only update provider-side status. No webhook confirms customer payment or creates/issues a reward.
 
 ## Local development
 1. Run `npm install`.
@@ -51,6 +58,7 @@ Connect the repository from **Cloudflare Dashboard → Workers & Pages → Worke
 - `APP_ENV`: `production`.
 - `RESEND_FROM_EMAIL`: verified sender address.
 - `TREMENDOUS_MODE`: keep `sandbox`.
+- `GATEWAY_SHARED_SECRET`: same random 32+ character secret configured as the Gateway `UPSTREAM_SECRET`; required for authenticated webhook forwarding.
 - `ISSUANCE_MODE`: keep `MANUAL_APPROVAL`.
 - `ENABLED_CHAINS`: informational until payment monitoring is implemented.
 
