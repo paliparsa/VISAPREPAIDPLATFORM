@@ -245,5 +245,33 @@ operationsRoutes.post("/orders/:id/manual-issuance", async (c) => {
     c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) SELECT ?, 'MANUAL_CARD_ISSUED','ORDER',?,? WHERE EXISTS (SELECT 1 FROM issuance_attempts WHERE id=?)").bind(actor.id, orderId, JSON.stringify({ provider: "TREMENDOUS_MANUAL", providerOrderId, deliveryUrl: Boolean(deliveryUrl), note }), attemptId)
   ]);
   if ((results[0].meta.changes ?? 0) !== 1 || (results[1].meta.changes ?? 0) !== 1) return c.json({ error: "ORDER_STATE_CONFLICT", message: "وضعیت سفارش هم‌زمان تغییر کرده است؛ صفحه را تازه کنید." }, 409);
-  return c.json({ status: "ISSUED", message: "صدور دستی ثبت شد. هیچ درخواست API به Tremendous ارسال نشد." });
+  await c.env.DB.batch([
+    c.env.DB.prepare(`
+      UPDATE issuance_attempts SET
+        provider_status=(SELECT SUBSTR(event_type,8) FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1),
+        provider_last_event=(SELECT event_type FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1),
+        provider_last_event_at=(SELECT created_at FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1)
+      WHERE id=? AND EXISTS (SELECT 1 FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED')
+    `).bind(providerOrderId, providerOrderId, providerOrderId, attemptId, providerOrderId),
+    c.env.DB.prepare(`
+      UPDATE orders SET status='FAILED',updated_at=CURRENT_TIMESTAMP
+      WHERE id=? AND EXISTS (
+        SELECT 1 FROM provider_events pe
+        WHERE pe.provider='TREMENDOUS' AND pe.resource_type='orders' AND pe.resource_id=?
+          AND pe.processing_status='UNMATCHED' AND pe.event_type IN ('ORDERS.FAILED','ORDERS.CANCELED')
+          AND pe.created_at=(SELECT MAX(created_at) FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED')
+      )
+    `).bind(orderId, providerOrderId, providerOrderId),
+    c.env.DB.prepare(`
+      UPDATE provider_events SET order_id=?,processing_status='PROCESSED',processed_at=COALESCE(processed_at,CURRENT_TIMESTAMP),
+        updated_at=CURRENT_TIMESTAMP,last_error=NULL
+      WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED'
+    `).bind(orderId, providerOrderId),
+    c.env.DB.prepare(`
+      INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json)
+      SELECT ?, 'TREMENDOUS_WEBHOOK_RECONCILED','ORDER',?,?
+      WHERE EXISTS (SELECT 1 FROM provider_events WHERE provider='TREMENDOUS' AND order_id=? AND resource_id=?)
+    `).bind(actor.id, orderId, JSON.stringify({ providerOrderId }), orderId, providerOrderId)
+  ]);
+  return c.json({ status: "ISSUED", message: "صدور دستی ثبت شد؛ وب‌هوک‌های قبلی این سفارش نیز در صورت وجود تطبیق داده شدند." });
 });
