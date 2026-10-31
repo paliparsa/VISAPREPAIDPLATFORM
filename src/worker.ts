@@ -6,6 +6,7 @@ import { authRoutes } from "./auth/routes";
 import { adminBootstrapRoutes, adminRoutes } from "./api/admin";
 import { catalogRoutes } from "./api/catalog";
 import { operationsRoutes } from "./api/operations";
+import { tremendousWebhookRoutes } from "./api/tremendous-webhook";
 
 const app = new Hono<{ Bindings: Env }>();
 app.use("/api/*", cors({
@@ -14,10 +15,11 @@ app.use("/api/*", cors({
     catch { return ""; }
   },
   allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type"],
+  allowHeaders: ["Content-Type", "X-Tremendous-Gateway-Signature", "Idempotency-Key", "X-Tremendous-Event-Id"],
   credentials: true
 }));
 app.route("/api", healthRoutes);
+app.route("/api", tremendousWebhookRoutes);
 app.route("/api/auth", authRoutes);
 app.route("/api/admin", adminBootstrapRoutes);
 app.route("/api/admin", adminRoutes);
