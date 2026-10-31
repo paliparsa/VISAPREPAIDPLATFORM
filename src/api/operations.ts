@@ -46,7 +46,8 @@ operationsRoutes.get("/orders", async (c) => {
       o.face_value_minor AS faceValueMinor, o.sale_price_minor AS salePriceMinor, o.currency,
       o.created_at AS createdAt, o.manual_payment_reference AS manualPaymentReference, o.manual_payment_note AS manualPaymentNote, u.email AS customerEmail, p.name AS productName,
       pay.status AS paymentStatus, pay.chain AS paymentChain,
-      ia.status AS issuanceStatus, ia.provider_order_id AS providerOrderId, ia.delivery_url AS deliveryUrl, ia.admin_note AS issuanceNote
+      ia.status AS issuanceStatus, ia.provider_order_id AS providerOrderId, ia.delivery_url AS deliveryUrl, ia.admin_note AS issuanceNote,
+      ia.provider_status AS providerStatus, ia.provider_last_event AS providerLastEvent, ia.provider_last_event_at AS providerLastEventAt
     FROM orders o JOIN users u ON u.id=o.user_id
     LEFT JOIN products p ON p.id=o.product_id
     LEFT JOIN payments pay ON pay.order_id=o.id
@@ -78,6 +79,22 @@ operationsRoutes.get("/customers", async (c) => {
   `).bind(...binds, limit, (page - 1) * limit).all();
   c.header("Cache-Control", "no-store");
   return c.json({ customers: results, page, limit, total: count?.total ?? 0 });
+});
+
+operationsRoutes.get("/provider-events", async (c) => {
+  const limit = safeInt(c.req.query("limit"), 50, 1, 100);
+  const status = (c.req.query("status") || "").trim().slice(0, 30);
+  const allowed = new Set(["RECEIVED", "PROCESSING", "PROCESSED", "UNMATCHED", "IGNORED", "FAILED"]);
+  const where = status && allowed.has(status) ? "AND processing_status=?" : "";
+  const statement = c.env.DB.prepare(`
+    SELECT id,provider_event_id AS eventId,event_type AS eventType,resource_type AS resourceType,
+      resource_id AS resourceId,order_id AS orderId,processing_status AS processingStatus,
+      last_error AS lastError,created_at AS createdAt,processed_at AS processedAt
+    FROM provider_events WHERE provider='TREMENDOUS' ${where}
+    ORDER BY created_at DESC LIMIT ?
+  `);
+  const { results } = status && allowed.has(status) ? await statement.bind(status, limit).all() : await statement.bind(limit).all();
+  return c.json({ events: results, count: results.length });
 });
 
 operationsRoutes.get("/activity", async (c) => {
@@ -228,5 +245,33 @@ operationsRoutes.post("/orders/:id/manual-issuance", async (c) => {
     c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) SELECT ?, 'MANUAL_CARD_ISSUED','ORDER',?,? WHERE EXISTS (SELECT 1 FROM issuance_attempts WHERE id=?)").bind(actor.id, orderId, JSON.stringify({ provider: "TREMENDOUS_MANUAL", providerOrderId, deliveryUrl: Boolean(deliveryUrl), note }), attemptId)
   ]);
   if ((results[0].meta.changes ?? 0) !== 1 || (results[1].meta.changes ?? 0) !== 1) return c.json({ error: "ORDER_STATE_CONFLICT", message: "وضعیت سفارش هم‌زمان تغییر کرده است؛ صفحه را تازه کنید." }, 409);
-  return c.json({ status: "ISSUED", message: "صدور دستی ثبت شد. هیچ درخواست API به Tremendous ارسال نشد." });
+  await c.env.DB.batch([
+    c.env.DB.prepare(`
+      UPDATE issuance_attempts SET
+        provider_status=(SELECT SUBSTR(event_type,8) FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1),
+        provider_last_event=(SELECT event_type FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1),
+        provider_last_event_at=(SELECT created_at FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1)
+      WHERE id=? AND EXISTS (SELECT 1 FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED')
+    `).bind(providerOrderId, providerOrderId, providerOrderId, attemptId, providerOrderId),
+    c.env.DB.prepare(`
+      UPDATE orders SET status='FAILED',updated_at=CURRENT_TIMESTAMP
+      WHERE id=? AND EXISTS (
+        SELECT 1 FROM provider_events pe
+        WHERE pe.provider='TREMENDOUS' AND pe.resource_type='orders' AND pe.resource_id=?
+          AND pe.processing_status='UNMATCHED' AND pe.event_type IN ('ORDERS.FAILED','ORDERS.CANCELED')
+          AND pe.created_at=(SELECT MAX(created_at) FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED')
+      )
+    `).bind(orderId, providerOrderId, providerOrderId),
+    c.env.DB.prepare(`
+      UPDATE provider_events SET order_id=?,processing_status='PROCESSED',processed_at=COALESCE(processed_at,CURRENT_TIMESTAMP),
+        updated_at=CURRENT_TIMESTAMP,last_error=NULL
+      WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED'
+    `).bind(orderId, providerOrderId),
+    c.env.DB.prepare(`
+      INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json)
+      SELECT ?, 'TREMENDOUS_WEBHOOK_RECONCILED','ORDER',?,?
+      WHERE EXISTS (SELECT 1 FROM provider_events WHERE provider='TREMENDOUS' AND order_id=? AND resource_id=?)
+    `).bind(actor.id, orderId, JSON.stringify({ providerOrderId }), orderId, providerOrderId)
+  ]);
+  return c.json({ status: "ISSUED", message: "صدور دستی ثبت شد؛ وب‌هوک‌های قبلی این سفارش نیز در صورت وجود تطبیق داده شدند." });
 });

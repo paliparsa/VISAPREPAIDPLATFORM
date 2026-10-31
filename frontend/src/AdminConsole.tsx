@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useState } from "react";
 
 type Product = { id: string; name: string; description: string | null; currency: string; faceValueMinor: number; salePriceMinor: number; providerProductId?: string; enabled?: number; sortOrder?: number };
-type Tab = "overview" | "products" | "orders" | "customers" | "provider" | "payments" | "activity";
+type Tab = "overview" | "products" | "orders" | "customers" | "provider" | "payments" | "activity" | "webhooks";
 type Props = { onMessage: (message: string, kind?: "success" | "error") => void };
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, credentials: "same-origin", headers: { "Content-Type": "application/json", ...(init.headers || {}) } });
@@ -23,6 +23,7 @@ export function AdminConsole({ onMessage }: Props) {
   const [orders, setOrders] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
+  const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
@@ -54,6 +55,7 @@ export function AdminConsole({ onMessage }: Props) {
     catch (e) { onMessage(e instanceof Error ? e.message : "بارگذاری تنظیمات ناموفق بود.", "error"); } finally { setLoading(false); }
   }
   async function loadActivity() { setLoading(true); try { const result = await api<{ activity: any[] }>("/api/admin/operations/activity"); setActivity(result.activity); } catch (e) { onMessage(e instanceof Error ? e.message : "بارگذاری گزارش فعالیت ناموفق بود.", "error"); } finally { setLoading(false); } }
+  async function loadWebhookEvents() { setLoading(true); try { const result = await api<{ events: any[] }>("/api/admin/operations/provider-events?limit=100"); setWebhookEvents(result.events); } catch (e) { onMessage(e instanceof Error ? e.message : "بارگذاری وب‌هوک‌ها ناموفق بود.", "error"); } finally { setLoading(false); } }
 
   useEffect(() => { void loadOverview(); }, []);
   useEffect(() => {
@@ -63,6 +65,7 @@ export function AdminConsole({ onMessage }: Props) {
     if (tab === "customers") void loadCustomers(1);
     if (tab === "provider" || tab === "payments") void loadProvider();
     if (tab === "activity") void loadActivity();
+    if (tab === "webhooks") void loadWebhookEvents();
   }, [tab]);
 
   function resetProduct() { setForm({ id: "", name: "", description: "", providerProductId: "V4QZ00F554D3", faceValue: "25", salePrice: "29", sortOrder: "0", enabled: false }); }
@@ -125,7 +128,7 @@ export function AdminConsole({ onMessage }: Props) {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "نمای کلی" }, { id: "products", label: "محصولات" }, { id: "orders", label: "سفارش‌ها" },
-    { id: "customers", label: "مشتریان" }, { id: "provider", label: "اتصال Tremendous" }, { id: "payments", label: "پرداخت‌ها" }, { id: "activity", label: "گزارش فعالیت" }
+    { id: "customers", label: "مشتریان" }, { id: "provider", label: "اتصال Tremendous" }, { id: "webhooks", label: "وب‌هوک‌ها" }, { id: "payments", label: "پرداخت‌ها" }, { id: "activity", label: "گزارش فعالیت" }
   ];
   const stats = overview ? [
     ["کاربران", overview.users?.total, `${number(overview.users?.active)} حساب فعال`],
@@ -169,7 +172,7 @@ export function AdminConsole({ onMessage }: Props) {
     {tab === "orders" && <div className="admin-pane">
       <div className="pane-title"><div><h3>سفارش‌ها</h3><p>{number(total)} سفارش ثبت‌شده؛ پرداخت و صدور فقط با تأیید دستی مدیر ثبت می‌شوند؛ هیچ API یا پرداخت خودکاری اجرا نمی‌شود.</p></div></div>
       <form className="filter-bar" onSubmit={e => { e.preventDefault(); void loadOrders(1, query, status); }} noValidate><input aria-label="جست‌وجوی سفارش" placeholder="شناسه سفارش یا ایمیل…" value={query} onChange={e => setQuery(e.target.value)} /><select aria-label="فیلتر وضعیت" value={status} onChange={e => setStatus(e.target.value)}><option value="">همه وضعیت‌ها</option><option value="PENDING_PAYMENT">در انتظار پرداخت</option><option value="PAID">پرداخت‌شده</option><option value="ISSUING">در حال صدور</option><option value="ISSUED">صادرشده</option><option value="FAILED">ناموفق</option><option value="ISSUED">صادرشده</option></select><button className="button button-primary">جست‌وجو</button></form>
-      <div className="table-wrap"><table><thead><tr><th>شناسه</th><th>مشتری</th><th>محصول</th><th>مبلغ</th><th>پرداخت</th><th>صدور</th><th>مرجع پرداخت</th><th>ثبت</th><th>اقدام دستی</th></tr></thead><tbody>{orders.length ? orders.map(order => <tr key={order.id}><td dir="ltr">{order.id.slice(0, 10)}</td><td><strong>{order.recipientName || order.customerEmail}</strong><small className="sub-cell">{order.recipientEmail || order.customerEmail}</small></td><td>{order.productName || "—"}</td><td dir="ltr">{money(order.salePriceMinor)}</td><td><span className="pill">{statusLabel(order.paymentStatus || order.status)}</span></td><td><span className="pill">{statusLabel(order.issuanceStatus || "—")}</span>{order.providerOrderId && <small className="sub-cell">Tremendous: {order.providerOrderId}</small>}{order.deliveryUrl && <small className="sub-cell">لینک تحویل ثبت شده</small>}</td><td dir="ltr">{order.manualPaymentReference || "—"}</td><td>{date(order.createdAt)}</td><td className="row-actions">{["PENDING_PAYMENT","AWAITING_PAYMENT"].includes(order.status) ? <button className="text-button" disabled={busy} onClick={() => void confirmManualPayment(order)}>تأیید پرداخت</button> : null}{["PAID","ISSUING"].includes(order.status) ? <button className="text-button" disabled={busy} onClick={() => void recordManualIssuance(order)}>ثبت صدور دستی</button> : null}{order.status === "ISSUED" ? <span className="pill pill-on">تکمیل‌شده</span> : null}</td></tr>) : <tr><td colSpan={9} className="empty-cell">{loading ? "در حال بارگذاری…" : "هنوز سفارشی ثبت نشده است."}</td></tr>}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr><th>شناسه</th><th>مشتری</th><th>محصول</th><th>مبلغ</th><th>پرداخت</th><th>صدور</th><th>مرجع پرداخت</th><th>ثبت</th><th>اقدام دستی</th></tr></thead><tbody>{orders.length ? orders.map(order => <tr key={order.id}><td dir="ltr">{order.id.slice(0, 10)}</td><td><strong>{order.recipientName || order.customerEmail}</strong><small className="sub-cell">{order.recipientEmail || order.customerEmail}</small></td><td>{order.productName || "—"}</td><td dir="ltr">{money(order.salePriceMinor)}</td><td><span className="pill">{statusLabel(order.paymentStatus || order.status)}</span></td><td><span className="pill">{statusLabel(order.issuanceStatus || "—")}</span>{order.providerOrderId && <small className="sub-cell">Tremendous: {order.providerOrderId}</small>}{order.providerLastEvent && <small className="sub-cell">رویداد اخیر: {order.providerLastEvent} · {order.providerStatus}</small>}{order.deliveryUrl && <small className="sub-cell">لینک تحویل ثبت شده</small>}</td><td dir="ltr">{order.manualPaymentReference || "—"}</td><td>{date(order.createdAt)}</td><td className="row-actions">{["PENDING_PAYMENT","AWAITING_PAYMENT"].includes(order.status) ? <button className="text-button" disabled={busy} onClick={() => void confirmManualPayment(order)}>تأیید پرداخت</button> : null}{["PAID","ISSUING"].includes(order.status) ? <button className="text-button" disabled={busy} onClick={() => void recordManualIssuance(order)}>ثبت صدور دستی</button> : null}{order.status === "ISSUED" ? <span className="pill pill-on">تکمیل‌شده</span> : null}</td></tr>) : <tr><td colSpan={9} className="empty-cell">{loading ? "در حال بارگذاری…" : "هنوز سفارشی ثبت نشده است."}</td></tr>}</tbody></table></div>
       <div className="pagination"><span>{number(total)} نتیجه</span><div><button className="button button-quiet" disabled={page <= 1 || loading} onClick={() => void loadOrders(page - 1)}>قبلی</button><span>صفحه {number(page)}</span><button className="button button-quiet" disabled={page * 20 >= total || loading} onClick={() => void loadOrders(page + 1)}>بعدی</button></div></div>
     </div>}
 
@@ -202,6 +205,13 @@ export function AdminConsole({ onMessage }: Props) {
       <div className="ops-callout"><b>تغییر متغیرهای شبکه</b><p>مقادیر ENABLED_CHAINS و ISSUANCE_MODE فعلاً از Cloudflare Worker → Settings → Variables and Secrets خوانده می‌شوند؛ این پنل آن‌ها را تغییر نمی‌دهد.</p></div>
     </div>}
 
+    {tab === "webhooks" && <div className="admin-pane">
+      <div className="pane-title"><div><h3>رویدادهای Tremendous</h3><p>رویدادهای تأییدشده Gateway، وضعیت تطبیق با سفارش و خطاهای پردازش</p></div><button className="button button-quiet" onClick={() => void loadWebhookEvents()} disabled={loading}>به‌روزرسانی</button></div>
+      <div className="ops-callout"><b>امنیت و وضعیت</b><p>فقط رویدادهایی که امضای Gateway آن‌ها معتبر باشد ثبت می‌شوند. رویدادهای نامرتبط یا فاقد سفارش متناظر به‌صورت جداگانه نگهداری می‌شوند و به‌تنهایی پرداخت یا صدور را تأیید نمی‌کنند.</p></div>
+      <div className="table-wrap"><table><thead><tr><th>شناسه رویداد</th><th>نوع</th><th>منبع</th><th>سفارش پنل</th><th>وضعیت</th><th>خطا</th><th>زمان</th></tr></thead><tbody>
+        {webhookEvents.length ? webhookEvents.map(item => <tr key={item.id}><td dir="ltr">{String(item.eventId).slice(0, 14)}</td><td><strong>{item.eventType}</strong></td><td dir="ltr">{item.resourceType || "—"} / {item.resourceId || "—"}</td><td dir="ltr">{item.orderId || "—"}</td><td><span className="pill">{item.processingStatus}</span></td><td>{item.lastError || "—"}</td><td>{date(item.createdAt)}</td></tr>) : <tr><td colSpan={7} className="empty-cell">هنوز وب‌هوکی به پنل اصلی نرسیده است.</td></tr>}
+      </tbody></table></div>
+    </div>}
     {tab === "activity" && <div className="admin-pane">
       <div className="pane-title"><div><h3>گزارش فعالیت مدیران</h3><p>آخرین رویدادهای ثبت‌شده در audit log</p></div><button className="button button-quiet" onClick={() => void loadActivity()} disabled={loading}>به‌روزرسانی</button></div>
       <div className="table-wrap"><table><thead><tr><th>رویداد</th><th>مدیر</th><th>نوع رکورد</th><th>شناسه</th><th>جزئیات</th><th>زمان</th></tr></thead><tbody>{activity.length ? activity.map(item => <tr key={item.id}><td><strong>{item.action}</strong></td><td>{item.actorEmail || "سیستم"}</td><td>{item.entityType}</td><td dir="ltr">{String(item.entityId).slice(0, 14)}</td><td className="audit-meta">{item.metadata ? String(item.metadata).slice(0, 90) : "—"}</td><td>{date(item.createdAt)}</td></tr>) : <tr><td colSpan={6} className="empty-cell">هنوز رویدادی ثبت نشده است.</td></tr>}</tbody></table></div>
