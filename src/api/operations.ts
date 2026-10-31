@@ -81,20 +81,119 @@ operationsRoutes.get("/customers", async (c) => {
   return c.json({ customers: results, page, limit, total: count?.total ?? 0 });
 });
 
+operationsRoutes.get("/provider-event-summary", async (c) => {
+  const [totals, categories, alerts] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT COUNT(*) AS total,
+        SUM(CASE WHEN processing_status='PROCESSED' THEN 1 ELSE 0 END) AS processed,
+        SUM(CASE WHEN processing_status='UNMATCHED' THEN 1 ELSE 0 END) AS unmatched,
+        SUM(CASE WHEN processing_status='FAILED' THEN 1 ELSE 0 END) AS failed,
+        SUM(CASE WHEN processing_status='IGNORED' THEN 1 ELSE 0 END) AS ignored,
+        SUM(CASE WHEN processing_status IN ('RECEIVED','PROCESSING') THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN action_required=1 THEN 1 ELSE 0 END) AS actionRequired
+      FROM provider_events WHERE provider='TREMENDOUS'
+    `).first(),
+    c.env.DB.prepare(`
+      SELECT event_category AS category, COUNT(*) AS total
+      FROM provider_events WHERE provider='TREMENDOUS'
+      GROUP BY event_category ORDER BY total DESC
+    `).all(),
+    c.env.DB.prepare(`
+      SELECT COUNT(*) AS open, SUM(CASE WHEN severity='CRITICAL' THEN 1 ELSE 0 END) AS critical
+      FROM provider_alerts WHERE provider='TREMENDOUS' AND status='OPEN'
+    `).first()
+  ]);
+  c.header("Cache-Control", "no-store");
+  return c.json({ totals, categories: categories.results, alerts });
+});
+
 operationsRoutes.get("/provider-events", async (c) => {
   const limit = safeInt(c.req.query("limit"), 50, 1, 100);
   const status = (c.req.query("status") || "").trim().slice(0, 30);
+  const category = (c.req.query("category") || "").trim().slice(0, 30);
+  const q = (c.req.query("q") || "").trim().slice(0, 120);
   const allowed = new Set(["RECEIVED", "PROCESSING", "PROCESSED", "UNMATCHED", "IGNORED", "FAILED"]);
-  const where = status && allowed.has(status) ? "AND processing_status=?" : "";
-  const statement = c.env.DB.prepare(`
+  const clauses = ["provider='TREMENDOUS'"];
+  const binds: (string | number)[] = [];
+  if (status && allowed.has(status)) { clauses.push("processing_status=?"); binds.push(status); }
+  if (category) { clauses.push("event_category=?"); binds.push(category); }
+  if (q) { clauses.push("(provider_event_id LIKE ? OR event_type LIKE ? OR resource_id LIKE ? OR order_id LIKE ?)"); binds.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`); }
+  const { results } = await c.env.DB.prepare(`
     SELECT id,provider_event_id AS eventId,event_type AS eventType,resource_type AS resourceType,
       resource_id AS resourceId,order_id AS orderId,processing_status AS processingStatus,
-      last_error AS lastError,created_at AS createdAt,processed_at AS processedAt
-    FROM provider_events WHERE provider='TREMENDOUS' ${where}
+      event_category AS category,action_required AS actionRequired,last_error AS lastError,
+      created_at AS createdAt,processed_at AS processedAt,resource_created_utc AS resourceCreatedUtc
+    FROM provider_events WHERE ${clauses.join(" AND ")}
     ORDER BY created_at DESC LIMIT ?
-  `);
-  const { results } = status && allowed.has(status) ? await statement.bind(status, limit).all() : await statement.bind(limit).all();
+  `).bind(...binds, limit).all();
+  c.header("Cache-Control", "no-store");
   return c.json({ events: results, count: results.length });
+});
+
+operationsRoutes.get("/provider-events/:id", async (c) => {
+  const id = c.req.param("id").slice(0, 100);
+  const event = await c.env.DB.prepare(`
+    SELECT id,provider_event_id AS eventId,event_type AS eventType,resource_type AS resourceType,
+      resource_id AS resourceId,order_id AS orderId,processing_status AS processingStatus,
+      event_category AS category,action_required AS actionRequired,last_error AS lastError,
+      payload_json AS payloadJson,resource_created_utc AS resourceCreatedUtc,
+      created_at AS createdAt,processed_at AS processedAt,updated_at AS updatedAt
+    FROM provider_events WHERE provider='TREMENDOUS' AND id=? LIMIT 1
+  `).bind(id).first();
+  if (!event) return c.json({ error: "PROVIDER_EVENT_NOT_FOUND" }, 404);
+  const attempts = await c.env.DB.prepare(`
+    SELECT attempt_number AS attemptNumber,status,error_message AS errorMessage,
+      started_at AS startedAt,finished_at AS finishedAt
+    FROM provider_event_attempts WHERE provider_event_row_id=? ORDER BY attempt_number DESC LIMIT 20
+  `).bind(id).all();
+  return c.json({ event, attempts: attempts.results });
+});
+
+operationsRoutes.get("/provider-alerts", async (c) => {
+  const limit = safeInt(c.req.query("limit"), 50, 1, 100);
+  const status = (c.req.query("status") || "OPEN").trim().toUpperCase();
+  const allowed = new Set(["OPEN", "ACKNOWLEDGED", "RESOLVED", "ALL"]);
+  const where = status === "ALL" ? "" : "AND a.status=?";
+  const statement = c.env.DB.prepare(`
+    SELECT a.id,a.alert_type AS alertType,a.severity,a.title,a.message,a.status,
+      a.created_at AS createdAt,a.acknowledged_at AS acknowledgedAt,
+      a.provider_event_row_id AS eventRowId,e.provider_event_id AS eventId,
+      e.event_type AS eventType,e.resource_id AS resourceId
+    FROM provider_alerts a JOIN provider_events e ON e.id=a.provider_event_row_id
+    WHERE a.provider='TREMENDOUS' ${where}
+    ORDER BY CASE a.severity WHEN 'CRITICAL' THEN 0 WHEN 'WARNING' THEN 1 ELSE 2 END,
+      a.created_at DESC LIMIT ?
+  `);
+  const { results } = status === "ALL" || !allowed.has(status)
+    ? await statement.bind(limit).all()
+    : await statement.bind(status, limit).all();
+  return c.json({ alerts: results, count: results.length });
+});
+
+operationsRoutes.post("/provider-alerts/:id/acknowledge", async (c) => {
+  if (!assertSameOrigin(c)) return c.json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  const id = c.req.param("id").slice(0, 100);
+  const actor = c.get("adminUser");
+  const result = await c.env.DB.prepare(`
+    UPDATE provider_alerts SET status='ACKNOWLEDGED',acknowledged_at=CURRENT_TIMESTAMP,acknowledged_by=?
+    WHERE id=? AND provider='TREMENDOUS' AND status='OPEN'
+  `).bind(actor.id, id).run();
+  if ((result.meta.changes ?? 0) !== 1) return c.json({ error: "ALERT_NOT_OPEN_OR_NOT_FOUND" }, 409);
+  await c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) VALUES(?,'PROVIDER_ALERT_ACKNOWLEDGED','PROVIDER_ALERT',?, '{}')")
+    .bind(actor.id, id).run();
+  return c.json({ status: "ACKNOWLEDGED" });
+});
+
+operationsRoutes.get("/provider-automation-rules", async (c) => {
+  return c.json({ rules: [
+    { id: "order-failed", eventType: "ORDERS.FAILED", action: "CREATE_ALERT", enabled: true, automaticFinancialMutation: false },
+    { id: "order-canceled", eventType: "ORDERS.CANCELED", action: "CREATE_ALERT", enabled: true, automaticFinancialMutation: false },
+    { id: "reward-flagged", eventType: "REWARDS.FLAGGED", action: "CREATE_CRITICAL_ALERT", enabled: true, automaticFinancialMutation: false },
+    { id: "fraud-blocked", eventType: "FRAUD_REVIEWS.BLOCKED", action: "CREATE_CRITICAL_ALERT", enabled: true, automaticFinancialMutation: false },
+    { id: "delivery-failed", eventType: "REWARDS.DELIVERY.FAILED", action: "CREATE_ALERT", enabled: true, automaticFinancialMutation: false },
+    { id: "funding-reversed", eventType: "TOPUPS.REVERSED", action: "CREATE_ALERT", enabled: true, automaticFinancialMutation: false },
+    { id: "product-removed", eventType: "PRODUCTS.REMOVED", action: "CREATE_ALERT", enabled: true, automaticFinancialMutation: false }
+  ] });
 });
 
 operationsRoutes.get("/activity", async (c) => {
@@ -118,8 +217,11 @@ operationsRoutes.get("/settings", async (c) => {
   return c.json({
     provider: {
       name: "Tremendous",
-      mode: config?.mode || (c.env.TREMENDOUS_MODE === "live" ? "live" : "sandbox"),
-      apiKeyConfigured: Boolean(config?.apiKey),
+      connectionMode: "WEBHOOK_ONLY",
+      gatewayReceiverConfigured: Boolean(c.env.GATEWAY_SHARED_SECRET && c.env.GATEWAY_SHARED_SECRET.length >= 32),
+      webhookReceiverPath: "/api/internal/webhooks/tremendous",
+      mode: "webhook-only",
+      apiKeyConfigured: false,
       apiKeyManagedInCloudflare: Boolean(c.env.TREMENDOUS_API_KEY && c.env.TREMENDOUS_MODE === "live"),
       storedApiKey: Boolean(storedKey),
       encryptionReady: hasEncryptionKey,

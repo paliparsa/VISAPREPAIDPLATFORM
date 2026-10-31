@@ -1,7 +1,8 @@
 import React, { FormEvent, useEffect, useState } from "react";
+import { TremendousIntelligence } from "./TremendousIntelligence";
 
 type Product = { id: string; name: string; description: string | null; currency: string; faceValueMinor: number; salePriceMinor: number; providerProductId?: string; enabled?: number; sortOrder?: number };
-type Tab = "overview" | "products" | "orders" | "customers" | "provider" | "payments" | "activity" | "webhooks";
+type Tab = "overview" | "products" | "orders" | "customers" | "provider" | "payments" | "activity" | "webhooks" | "intelligence";
 type Props = { onMessage: (message: string, kind?: "success" | "error") => void };
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, credentials: "same-origin", headers: { "Content-Type": "application/json", ...(init.headers || {}) } });
@@ -128,7 +129,7 @@ export function AdminConsole({ onMessage }: Props) {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "نمای کلی" }, { id: "products", label: "محصولات" }, { id: "orders", label: "سفارش‌ها" },
-    { id: "customers", label: "مشتریان" }, { id: "provider", label: "اتصال Tremendous" }, { id: "webhooks", label: "وب‌هوک‌ها" }, { id: "payments", label: "پرداخت‌ها" }, { id: "activity", label: "گزارش فعالیت" }
+    { id: "customers", label: "مشتریان" }, { id: "provider", label: "اتصال Tremendous" }, { id: "intelligence", label: "هوشمندی Tremendous" }, { id: "webhooks", label: "وب‌هوک‌ها" }, { id: "payments", label: "پرداخت‌ها" }, { id: "activity", label: "گزارش فعالیت" }
   ];
   const stats = overview ? [
     ["کاربران", overview.users?.total, `${number(overview.users?.active)} حساب فعال`],
@@ -184,17 +185,12 @@ export function AdminConsole({ onMessage }: Props) {
     </div>}
 
     {tab === "provider" && <div className="admin-pane">
-      <div className="pane-title"><div><h3>اتصال به Tremendous</h3><p>کلید API در پایگاه داده با AES-GCM رمزنگاری می‌شود و هرگز به مرورگر برگردانده نمی‌شود.</p></div><span className={provider?.apiKeyConfigured ? "pill pill-on" : "pill"}>{provider?.apiKeyConfigured ? "کلید تنظیم شده" : "بدون کلید API"}</span></div>
-      <div className="provider-meta"><div><small>محیط فعال</small><b>{provider?.mode === "live" ? "Live" : "Sandbox"}</b></div><div><small>رمزنگاری ذخیره‌سازی</small><b>{provider?.encryptionReady ? "آماده" : "نیازمند ENCRYPTION_KEY"}</b></div><div><small>منبع مالی</small><b dir="ltr">{provider?.fundingSourceId || "تنظیم نشده"}</b></div></div>
-      {!provider?.encryptionReady && <div className="ops-callout warning"><b>یک تنظیم Cloudflare لازم است</b><p>در Worker → Settings → Variables and Secrets، یک Secret با نام ENCRYPTION_KEY بسازید. مقدار آن باید Base64 معتبرِ دقیقاً ۳۲ بایت باشد. نمونه ساخت: <code>openssl rand -base64 32</code></p></div>}
-      <form className="product-editor provider-form" onSubmit={saveProvider} noValidate>
-        <label>کلید API جدید<input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} autoComplete="new-password" dir="ltr" placeholder={provider?.apiKeyConfigured ? "برای حفظ کلید فعلی خالی بگذارید" : "Tremendous API key"} /></label>
-        <div className="editor-grid"><label>Funding Source ID<input value={fundingSourceId} onChange={e => setFundingSourceId(e.target.value)} dir="ltr" placeholder="BALANCE یا شناسه منبع" /></label><label>Virtual Visa Product ID<input value={visaProductId} onChange={e => setVisaProductId(e.target.value)} dir="ltr" /></label></div>
-        <p className="admin-note">این فرم کلید و تنظیمات Sandbox را ذخیره می‌کند. فعال‌سازی Live فقط از طریق Cloudflare و پس از تأیید کتبی ارائه‌دهنده مجاز است.</p>
-        <div className="editor-actions"><button className="button button-primary" disabled={busy || !provider?.encryptionReady}>ذخیره تنظیمات</button><button type="button" className="button button-quiet" onClick={() => void testProvider()} disabled={busy || !provider?.apiKeyConfigured}>تست اتصال</button></div>
-      </form>
-      {providerTested && <div className="provider-results"><h4>منابع مالی قابل مشاهده</h4>{fundingSources.length ? <div className="table-wrap"><table><thead><tr><th>شناسه</th><th>نوع</th><th>وضعیت</th><th>اجازه سفارش API</th><th>موجودی (USD)</th></tr></thead><tbody>{fundingSources.map((source, i) => <tr key={source.id || i}><td dir="ltr">{source.id}</td><td>{source.method}</td><td>{source.status}</td><td>{source.canPayApiOrders ? "دارد" : "ندارد"}</td><td dir="ltr">{source.availableCents == null ? "—" : money(source.availableCents)}</td></tr>)}</tbody></table></div> : <p className="admin-note">اتصال برقرار شد اما منبع مالی‌ای برنگشت.</p>}</div>}
-      <p className="admin-note">تست اتصال فقط درخواست GET به فهرست منابع مالی ارسال می‌کند و هیچ سفارش یا تراکنش مالی ایجاد نمی‌کند.</p>
+      <div className="pane-title"><div><h3>اتصال Tremendous از طریق Webhook</h3><p>این حساب در حال حاضر دسترسی API ندارد؛ پلتفرم فقط رویدادهای ارسالی Tremendous را دریافت می‌کند.</p></div><span className={provider?.gatewayReceiverConfigured ? "pill pill-on" : "pill"}>{provider?.gatewayReceiverConfigured ? "Gateway متصل" : "Secret تنظیم نشده"}</span></div>
+      <div className="provider-meta"><div><small>مدل اتصال</small><b>Webhook-only</b></div><div><small>اعتبارسنجی Gateway</small><b>{provider?.gatewayReceiverConfigured ? "پیکربندی شده" : "نیازمند GATEWAY_SHARED_SECRET"}</b></div><div><small>ارسال درخواست به Tremendous</small><b>غیرفعال؛ API نداریم</b></div></div>
+      <div className="ops-callout"><b>آدرس Webhook برای تنظیم در Tremendous</b><p dir="ltr">https://notify.roshava.app/webhook</p><p>کلید امضای Webhook باید فقط در Secret مربوط به Gateway با نام TREMENDOUS_WEBHOOK_SECRET نگهداری شود. این کلید را در پنل اصلی یا مرورگر قرار ندهید.</p></div>
+      <div className="ops-callout"><b>Receiver پلتفرم اصلی</b><p dir="ltr">https://visa.roshava.app{provider?.webhookReceiverPath || "/api/internal/webhooks/tremendous"}</p><p>Gateway رویدادهای تأییدشده را با امضای داخلی به این مسیر منتقل می‌کند. همه رویدادها ذخیره می‌شوند؛ فقط رویدادهای قابل تطبیق روی سفارش اثر می‌گذارند.</p></div>
+      <div className="ops-callout warning"><b>محدودیت دسترسی فعلی</b><p>از این پنل نمی‌توان سفارش جدیدی در Tremendous ایجاد کرد، موجودی لحظه‌ای گرفت، کارت صادر یا سفارش را لغو و مسترد کرد. ثبت پرداخت و صدور همچنان دستی و با بررسی مستقل انجام می‌شود.</p></div>
+      <div className="editor-actions"><button className="button button-quiet" onClick={() => setTab("intelligence")}>بازکردن مرکز هوشمندی Tremendous</button></div>
     </div>}
 
     {tab === "payments" && <div className="admin-pane">
@@ -204,6 +200,8 @@ export function AdminConsole({ onMessage }: Props) {
       <div className="ops-callout warning"><b>پرداخت زنده هنوز فعال نیست</b><p>فعال‌بودن نام شبکه در تنظیمات به معنی اتصال کیف پول، پایش تراکنش یا تأیید پرداخت نیست. برای جلوگیری از دریافت پول بدون امکان تطبیق، سفارش‌گیری و پرداخت رمزارزی تا تکمیل مانیتورینگ، مدیریت آدرس‌ها، تأییدیه‌ها و بررسی انطباق غیرفعال می‌ماند.</p></div>
       <div className="ops-callout"><b>تغییر متغیرهای شبکه</b><p>مقادیر ENABLED_CHAINS و ISSUANCE_MODE فعلاً از Cloudflare Worker → Settings → Variables and Secrets خوانده می‌شوند؛ این پنل آن‌ها را تغییر نمی‌دهد.</p></div>
     </div>}
+
+    {tab === "intelligence" && <div className="admin-pane"><TremendousIntelligence onMessage={onMessage} /></div>}
 
     {tab === "webhooks" && <div className="admin-pane">
       <div className="pane-title"><div><h3>رویدادهای Tremendous</h3><p>رویدادهای تأییدشده Gateway، وضعیت تطبیق با سفارش و خطاهای پردازش</p></div><button className="button button-quiet" onClick={() => void loadWebhookEvents()} disabled={loading}>به‌روزرسانی</button></div>
