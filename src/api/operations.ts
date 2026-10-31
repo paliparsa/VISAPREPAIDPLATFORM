@@ -217,8 +217,11 @@ operationsRoutes.get("/settings", async (c) => {
   return c.json({
     provider: {
       name: "Tremendous",
-      mode: config?.mode || (c.env.TREMENDOUS_MODE === "live" ? "live" : "sandbox"),
-      apiKeyConfigured: Boolean(config?.apiKey),
+      connectionMode: "WEBHOOK_ONLY",
+      gatewayReceiverConfigured: Boolean(c.env.GATEWAY_SHARED_SECRET && c.env.GATEWAY_SHARED_SECRET.length >= 32),
+      webhookReceiverPath: "/api/internal/webhooks/tremendous",
+      mode: "webhook-only",
+      apiKeyConfigured: false,
       apiKeyManagedInCloudflare: Boolean(c.env.TREMENDOUS_API_KEY && c.env.TREMENDOUS_MODE === "live"),
       storedApiKey: Boolean(storedKey),
       encryptionReady: hasEncryptionKey,
