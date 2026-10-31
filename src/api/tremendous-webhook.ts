@@ -72,10 +72,12 @@ tremendousWebhookRoutes.post("/internal/webhooks/tremendous", async (c) => {
     }
     const providerStatus = eventType.slice("ORDERS.".length);
     const failed = eventType === "ORDERS.FAILED" || eventType === "ORDERS.CANCELED";
+    const eventAt = typeof payload.created_utc === "string" && Number.isFinite(Date.parse(payload.created_utc))
+      ? new Date(payload.created_utc).toISOString() : new Date().toISOString();
     await c.env.DB.batch([
       c.env.DB.prepare("UPDATE provider_events SET order_id=?,processing_status='PROCESSED',processed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP,last_error=NULL WHERE provider='TREMENDOUS' AND provider_event_id=?").bind(match.order_id, eventId),
-      c.env.DB.prepare("UPDATE issuance_attempts SET provider_status=?,provider_last_event=?,provider_last_event_at=CURRENT_TIMESTAMP,status=CASE WHEN ?=1 THEN 'FAILED' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(providerStatus, eventType, failed ? 1 : 0, match.issuance_id),
-      c.env.DB.prepare("UPDATE orders SET status=CASE WHEN ?=1 AND status IN ('PAID','ISSUING','ISSUED') THEN 'FAILED' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(failed ? 1 : 0, match.order_id),
+      c.env.DB.prepare("UPDATE issuance_attempts SET provider_status=?,provider_last_event=?,provider_last_event_at=?,status=CASE WHEN ?=1 THEN 'FAILED' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND (provider_last_event_at IS NULL OR provider_last_event_at<=?)").bind(providerStatus, eventType, eventAt, failed ? 1 : 0, match.issuance_id, eventAt),
+      c.env.DB.prepare("UPDATE orders SET status=CASE WHEN ?=1 AND status IN ('PAID','ISSUING','ISSUED') THEN 'FAILED' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND EXISTS (SELECT 1 FROM issuance_attempts WHERE id=? AND provider_last_event=? AND provider_last_event_at=? AND status='FAILED')").bind(failed ? 1 : 0, match.order_id, match.issuance_id, eventType, eventAt),
       c.env.DB.prepare("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata_json) VALUES(NULL,?,'ORDER',?,?)").bind("TREMENDOUS_WEBHOOK_" + providerStatus, match.order_id, JSON.stringify({ providerEventId: eventId, eventType, resourceId, createdUtc: typeof payload.created_utc === "string" ? payload.created_utc : null }))
     ]);
     return c.json({ received: true, status: "PROCESSED", orderId: match.order_id });
