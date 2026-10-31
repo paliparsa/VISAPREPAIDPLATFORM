@@ -63,3 +63,7 @@ Connect the repository from **Cloudflare Dashboard → Workers & Pages → Worke
 - `ENABLED_CHAINS`: informational until payment monitoring is implemented.
 
 Cloudflare-managed secrets are never committed to GitHub. `keep_vars: true` preserves dashboard-managed variables across deploys.
+
+
+## Tremendous webhook-only operations
+See [the webhook-only operations guide](docs/tremendous-webhook-only-operations.md) for the event architecture, event categories, admin intelligence module, and API access limitations.
