@@ -64,6 +64,7 @@
 
 ## Async and resilience
 - Auth mutations are server-validated and rate-limited.
+- Verification and password-reset email URLs use the origin of the public request, never a local development URL; transactional emails share the responsive Visa Prepaid branded template.
 - Sessions are opaque, stored hashed in D1, HttpOnly, SameSite=Lax cookies, and expire after seven days.
 - Financial/provider mutations are pessimistic; UI updates only after server confirmation.
 - Provider connection test is read-only; a failed or timed-out request is not reported as connected.
