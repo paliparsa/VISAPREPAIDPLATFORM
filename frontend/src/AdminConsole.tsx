@@ -1,7 +1,8 @@
 import React, { FormEvent, useEffect, useState } from "react";
+import { TremendousIntelligence } from "./TremendousIntelligence";
 
 type Product = { id: string; name: string; description: string | null; currency: string; faceValueMinor: number; salePriceMinor: number; providerProductId?: string; enabled?: number; sortOrder?: number };
-type Tab = "overview" | "products" | "orders" | "customers" | "provider" | "payments" | "activity" | "webhooks";
+type Tab = "overview" | "products" | "orders" | "customers" | "provider" | "payments" | "activity" | "webhooks" | "intelligence";
 type Props = { onMessage: (message: string, kind?: "success" | "error") => void };
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, credentials: "same-origin", headers: { "Content-Type": "application/json", ...(init.headers || {}) } });
@@ -128,7 +129,7 @@ export function AdminConsole({ onMessage }: Props) {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "نمای کلی" }, { id: "products", label: "محصولات" }, { id: "orders", label: "سفارش‌ها" },
-    { id: "customers", label: "مشتریان" }, { id: "provider", label: "اتصال Tremendous" }, { id: "webhooks", label: "وب‌هوک‌ها" }, { id: "payments", label: "پرداخت‌ها" }, { id: "activity", label: "گزارش فعالیت" }
+    { id: "customers", label: "مشتریان" }, { id: "provider", label: "اتصال Tremendous" }, { id: "intelligence", label: "هوشمندی Tremendous" }, { id: "webhooks", label: "وب‌هوک‌ها" }, { id: "payments", label: "پرداخت‌ها" }, { id: "activity", label: "گزارش فعالیت" }
   ];
   const stats = overview ? [
     ["کاربران", overview.users?.total, `${number(overview.users?.active)} حساب فعال`],
@@ -204,6 +205,8 @@ export function AdminConsole({ onMessage }: Props) {
       <div className="ops-callout warning"><b>پرداخت زنده هنوز فعال نیست</b><p>فعال‌بودن نام شبکه در تنظیمات به معنی اتصال کیف پول، پایش تراکنش یا تأیید پرداخت نیست. برای جلوگیری از دریافت پول بدون امکان تطبیق، سفارش‌گیری و پرداخت رمزارزی تا تکمیل مانیتورینگ، مدیریت آدرس‌ها، تأییدیه‌ها و بررسی انطباق غیرفعال می‌ماند.</p></div>
       <div className="ops-callout"><b>تغییر متغیرهای شبکه</b><p>مقادیر ENABLED_CHAINS و ISSUANCE_MODE فعلاً از Cloudflare Worker → Settings → Variables and Secrets خوانده می‌شوند؛ این پنل آن‌ها را تغییر نمی‌دهد.</p></div>
     </div>}
+
+    {tab === "intelligence" && <div className="admin-pane"><TremendousIntelligence onMessage={onMessage} /></div>}
 
     {tab === "webhooks" && <div className="admin-pane">
       <div className="pane-title"><div><h3>رویدادهای Tremendous</h3><p>رویدادهای تأییدشده Gateway، وضعیت تطبیق با سفارش و خطاهای پردازش</p></div><button className="button button-quiet" onClick={() => void loadWebhookEvents()} disabled={loading}>به‌روزرسانی</button></div>
