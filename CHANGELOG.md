@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 - 2026-10-31
+- Add a signed, idempotent Tremendous Gateway receiver endpoint in the main Worker.
+- Persist provider webhook events, correlate order events to existing issuance attempts, and expose webhook activity in the admin console.
+- Record provider-side order state separately; only verified canceled/failed order events can mark a linked order failed.
+- Keep payment confirmation, crypto checkout, and live issuance gated/manual.
+
+
 ## 0.6.0 - 2026-10-31
 - Add audited admin workflow to manually confirm externally verified payment references on existing orders.
 - Add manual Tremendous fulfillment recording with provider order ID, optional HTTPS delivery URL, and internal note.
