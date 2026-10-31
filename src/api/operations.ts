@@ -250,7 +250,7 @@ operationsRoutes.post("/orders/:id/manual-issuance", async (c) => {
       UPDATE issuance_attempts SET
         provider_status=(SELECT SUBSTR(event_type,8) FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1),
         provider_last_event=(SELECT event_type FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1),
-        provider_last_event_at=(SELECT created_at FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1)
+        provider_last_event_at=(SELECT strftime('%Y-%m-%dT%H:%M:%fZ',created_at) FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED' ORDER BY created_at DESC LIMIT 1)
       WHERE id=? AND EXISTS (SELECT 1 FROM provider_events WHERE provider='TREMENDOUS' AND resource_type='orders' AND resource_id=? AND processing_status='UNMATCHED')
     `).bind(providerOrderId, providerOrderId, providerOrderId, attemptId, providerOrderId),
     c.env.DB.prepare(`
