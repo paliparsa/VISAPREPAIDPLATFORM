@@ -46,7 +46,8 @@ operationsRoutes.get("/orders", async (c) => {
       o.face_value_minor AS faceValueMinor, o.sale_price_minor AS salePriceMinor, o.currency,
       o.created_at AS createdAt, o.manual_payment_reference AS manualPaymentReference, o.manual_payment_note AS manualPaymentNote, u.email AS customerEmail, p.name AS productName,
       pay.status AS paymentStatus, pay.chain AS paymentChain,
-      ia.status AS issuanceStatus, ia.provider_order_id AS providerOrderId, ia.delivery_url AS deliveryUrl, ia.admin_note AS issuanceNote
+      ia.status AS issuanceStatus, ia.provider_order_id AS providerOrderId, ia.delivery_url AS deliveryUrl, ia.admin_note AS issuanceNote,
+      ia.provider_status AS providerStatus, ia.provider_last_event AS providerLastEvent, ia.provider_last_event_at AS providerLastEventAt
     FROM orders o JOIN users u ON u.id=o.user_id
     LEFT JOIN products p ON p.id=o.product_id
     LEFT JOIN payments pay ON pay.order_id=o.id
@@ -78,6 +79,22 @@ operationsRoutes.get("/customers", async (c) => {
   `).bind(...binds, limit, (page - 1) * limit).all();
   c.header("Cache-Control", "no-store");
   return c.json({ customers: results, page, limit, total: count?.total ?? 0 });
+});
+
+operationsRoutes.get("/provider-events", async (c) => {
+  const limit = safeInt(c.req.query("limit"), 50, 1, 100);
+  const status = (c.req.query("status") || "").trim().slice(0, 30);
+  const allowed = new Set(["RECEIVED", "PROCESSING", "PROCESSED", "UNMATCHED", "IGNORED", "FAILED"]);
+  const where = status && allowed.has(status) ? "AND processing_status=?" : "";
+  const statement = c.env.DB.prepare(`
+    SELECT id,provider_event_id AS eventId,event_type AS eventType,resource_type AS resourceType,
+      resource_id AS resourceId,order_id AS orderId,processing_status AS processingStatus,
+      last_error AS lastError,created_at AS createdAt,processed_at AS processedAt
+    FROM provider_events WHERE provider='TREMENDOUS' ${where}
+    ORDER BY created_at DESC LIMIT ?
+  `);
+  const { results } = status && allowed.has(status) ? await statement.bind(status, limit).all() : await statement.bind(limit).all();
+  return c.json({ events: results, count: results.length });
 });
 
 operationsRoutes.get("/activity", async (c) => {
