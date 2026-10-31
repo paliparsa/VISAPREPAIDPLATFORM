@@ -17,12 +17,12 @@ const categoryFa:Record<string,string>={ORDER:"سفارش",REWARD:"پاداش",F
 
 export function TremendousIntelligence({onMessage}:Props) {
  const [summary,setSummary]=useState<any>(null),[events,setEvents]=useState<EventRow[]>([]),[alerts,setAlerts]=useState<AlertRow[]>([]),[rules,setRules]=useState<any[]>([]);
- const [status,setStatus]=useState(""),[category,setCategory]=useState(""),[query,setQuery]=useState(""),[selected,setSelected]=useState<any>(null);
+ const [status,setStatus]=useState(""),[category,setCategory]=useState(""),[queryInput,setQueryInput]=useState(""),[searchQuery,setSearchQuery]=useState(""),[selected,setSelected]=useState<any>(null);
  const [loading,setLoading]=useState(false),[detailLoading,setDetailLoading]=useState(false),[tab,setTab]=useState<"events"|"alerts"|"rules">("events");
  const load=useCallback(async()=>{
   setLoading(true);
   try {
-   const params=new URLSearchParams({limit:"100"}); if(status)params.set("status",status); if(category)params.set("category",category); if(query.trim())params.set("q",query.trim());
+   const params=new URLSearchParams({limit:"100"}); if(status)params.set("status",status); if(category)params.set("category",category); if(searchQuery.trim())params.set("q",searchQuery.trim());
    const results=await Promise.all([
     request<any>("/api/admin/operations/provider-event-summary"),
     request<{events:EventRow[]}>("/api/admin/operations/provider-events?"+params),
@@ -32,7 +32,7 @@ export function TremendousIntelligence({onMessage}:Props) {
    setSummary(results[0]);setEvents(results[1].events||[]);setAlerts(results[2].alerts||[]);setRules(results[3].rules||[]);
   } catch(error){onMessage(error instanceof Error?error.message:"بارگذاری مرکز هوشمندی ناموفق بود.","error");}
   finally{setLoading(false);}
- },[status,category,query,onMessage]);
+ },[status,category,searchQuery,onMessage]);
  useEffect(()=>{void load();},[load]);
  async function openEvent(id:string){
   setDetailLoading(true);setSelected({loading:true});
@@ -53,7 +53,7 @@ export function TremendousIntelligence({onMessage}:Props) {
   <div className="ti-categories">{categoryRows.map((item:any)=><button key={item.category} className={category===item.category?"active":""} onClick={()=>setCategory(category===item.category?"":item.category)}><span>{categoryFa[item.category]||item.category}</span><b>{fmt(item.total)}</b></button>)}</div>
   <div className="ti-tabs"><button className={tab==="events"?"active":""} onClick={()=>setTab("events")}>رویدادها</button><button className={tab==="alerts"?"active":""} onClick={()=>setTab("alerts")}>هشدارها <span>{fmt(summary?.alerts?.open)}</span></button><button className={tab==="rules"?"active":""} onClick={()=>setTab("rules")}>قوانین اتوماسیون</button></div>
   {tab==="events"&&<>
-   <form className="ti-filters" onSubmit={e=>{e.preventDefault();void load();}}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="جست‌وجوی UUID، نوع رویداد، شناسه منبع یا سفارش"/><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">همه وضعیت‌ها</option>{Object.entries(statusFa).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><button className="button button-primary" disabled={loading}>جست‌وجو</button></form>
+   <form className="ti-filters" onSubmit={e=>{e.preventDefault();setSearchQuery(queryInput);}}><input value={queryInput} onChange={e=>setQueryInput(e.target.value)} placeholder="جست‌وجوی UUID، نوع رویداد، شناسه منبع یا سفارش"/><select value={status} onChange={e=>setStatus(e.target.value)}><option value="">همه وضعیت‌ها</option>{Object.entries(statusFa).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><button className="button button-primary" disabled={loading}>جست‌وجو</button></form>
    <div className="table-wrap"><table><thead><tr><th>رویداد</th><th>دسته</th><th>منبع</th><th>سفارش داخلی</th><th>وضعیت</th><th>زمان دریافت</th><th></th></tr></thead><tbody>
    {events.map(e=><tr key={e.id}><td><strong>{e.eventType}</strong><small className="sub-cell" dir="ltr">{e.eventId}</small></td><td>{categoryFa[e.category||""]||e.category||"—"}</td><td dir="ltr">{e.resourceType||"—"} / {e.resourceId||"—"}</td><td dir="ltr">{e.orderId||"—"}</td><td><span className={e.processingStatus==="FAILED"?"pill pill-off":e.processingStatus==="UNMATCHED"?"pill pill-warn":"pill"}>{statusFa[e.processingStatus]||e.processingStatus}</span>{Boolean(e.actionRequired)&&<small className="sub-cell">نیازمند بررسی</small>}</td><td>{when(e.createdAt)}</td><td><button className="text-button" onClick={()=>void openEvent(e.id)}>جزئیات</button></td></tr>)}
    {!events.length&&<tr><td colSpan={7} className="empty-cell">{loading?"در حال بارگذاری…":"رویدادی مطابق فیلترها پیدا نشد."}</td></tr>}
