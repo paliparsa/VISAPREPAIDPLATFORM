@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2 - 2026-10-31
+- Apply the black, white, and gray visual identity across the customer and admin interface.
+- Use a Yekan-first typography stack and remove decorative blue styling, gradients, and glow effects.
+- Restyle verification and password-reset emails with concise Persian copy and monochrome buttons.
+- Preserve public-request-origin links and existing authentication behavior.
+
 ## 0.8.1 - 2026-10-31
 - Build verification and password-reset links from the actual public request origin, preventing localhost URLs in production emails.
 - Redesign transactional account emails with responsive Visa Prepaid branding, a clear action button, visible fallback URL, and expiry/security guidance.
