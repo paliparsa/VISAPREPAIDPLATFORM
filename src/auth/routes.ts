@@ -19,15 +19,12 @@ function validEmail(value: string): boolean {
   return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-async function sendVerification(env: Env, email: string, token: string): Promise<void> {
-  const verifyUrl = new URL("/", env.APP_BASE_URL);
-  verifyUrl.searchParams.set("verify", token);
-  const mailer = new ResendMailer(env.RESEND_API_KEY, env.RESEND_FROM_EMAIL);
-  await mailer.send({
-    to: email,
-    subject: "تأیید ایمیل حساب کاربری",
-    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.9"><h2>تأیید ایمیل</h2><p>برای فعال‌سازی حساب خود روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.</p><p><a href="${verifyUrl.toString()}">تأیید ایمیل</a></p><p>اگر این درخواست از طرف شما نبوده، این پیام را نادیده بگیرید.</p></div>`
-  });
+async function sendVerification(env: Env, email: string, token: string, requestUrl: string): Promise<void> {
+  await sendAccountEmail(
+    env, email, "تأیید ایمیل حساب Visa Prepaid", "حساب شما تقریباً آماده است",
+    "برای فعال‌سازی حساب Visa Prepaid، ایمیل خود را با دکمه زیر تأیید کنید.",
+    "تأیید ایمیل", token, "verify", requestUrl
+  );
 }
 
 authRoutes.post("/register", async (c) => {
@@ -60,7 +57,7 @@ authRoutes.post("/register", async (c) => {
   }
 
   try {
-    await sendVerification(c.env, email, token);
+    await sendVerification(c.env, email, token, c.req.url);
   } catch (error) {
     console.error("Registration email delivery failed", error instanceof Error ? error.message : "unknown");
     return c.json({ status: "PENDING_VERIFICATION", message: "حساب ساخته شد اما ایمیل تأیید ارسال نشد. از گزینه ارسال مجدد ایمیل استفاده کنید." }, 201);
@@ -125,13 +122,60 @@ authRoutes.get("/me", async (c) => {
   if (!user) return c.json({ user: null }, 401);
   return c.json({ user });
 });
-async function sendAccountEmail(env: Env, email: string, subject: string, heading: string, description: string, actionLabel: string, token: string, queryName: "verify" | "reset"): Promise<void> {
-  const actionUrl = new URL("/", env.APP_BASE_URL);
+function buildAccountActionUrl(requestUrl: string, queryName: "verify" | "reset", token: string): string {
+  // Build links from the actual public origin serving this request. This avoids
+  // leaking the local APP_BASE_URL default into production emails.
+  const request = new URL(requestUrl);
+  const actionUrl = new URL("/", request.origin);
   actionUrl.searchParams.set(queryName, token);
+  return actionUrl.toString();
+}
+
+function renderAccountEmail(heading: string, description: string, actionLabel: string, actionUrl: string): string {
+  return `<!doctype html>
+<html lang="fa" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:32px 12px;background:#070b13;color:#eaf0fb;font-family:Tahoma,Arial,sans-serif;line-height:1.9">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0">پیام امنیتی حساب Visa Prepaid</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;margin:0 auto;border-collapse:separate;border-spacing:0">
+    <tr><td style="padding:0 0 18px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td align="right" style="color:#f3f6fc;font-size:15px;font-weight:700;letter-spacing:1px">VISA PREPAID</td>
+        <td align="left" style="color:#7f9bc7;font-size:10px;letter-spacing:1.5px">ACCOUNT SECURITY</td>
+      </tr></table>
+    </td></tr>
+    <tr><td style="padding:34px 30px 30px;background:#0d1523;border:1px solid #22334d;border-radius:18px">
+      <div style="width:42px;height:4px;background:#3978ee;border-radius:8px;margin-bottom:24px"></div>
+      <div style="color:#8eb5ff;font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:10px">VISA PREPAID · ACCOUNT</div>
+      <h1 style="margin:0 0 12px;color:#f3f6fc;font-size:23px;line-height:1.6;font-weight:700">${heading}</h1>
+      <p style="margin:0 0 26px;color:#aab8cd;font-size:14px;line-height:2">${description}</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px"><tr>
+        <td align="center" bgcolor="#3978ee" style="border-radius:10px">
+          <a href="${actionUrl}" target="_blank" style="display:inline-block;padding:13px 27px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;border-radius:10px">${actionLabel}</a>
+        </td>
+      </tr></table>
+      <p style="margin:0 0 8px;color:#899bb5;font-size:11px">اگر دکمه باز نشد، این لینک را در مرورگر باز کنید:</p>
+      <p dir="ltr" style="margin:0 0 22px;padding:11px 12px;background:#080e18;border:1px solid #1d2b40;border-radius:8px;text-align:left;overflow-wrap:anywhere;word-break:break-all;font-size:11px">
+        <a href="${actionUrl}" target="_blank" style="color:#8eb5ff;text-decoration:none">${actionUrl}</a>
+      </p>
+      <div style="padding-top:17px;border-top:1px solid #1d2b40;color:#91a0b5;font-size:11px">
+        این لینک فقط ۳۰ دقیقه معتبر است و پس از استفاده دوباره قابل استفاده نخواهد بود.
+      </div>
+    </td></tr>
+    <tr><td align="center" style="padding:20px 10px 0;color:#687991;font-size:10px;line-height:1.9">
+      اگر این درخواست از طرف شما نبوده، این پیام را نادیده بگیرید.<br>
+      © Visa Prepaid · پیام خودکار امنیت حساب
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendAccountEmail(env: Env, email: string, subject: string, heading: string, description: string, actionLabel: string, token: string, queryName: "verify" | "reset", requestUrl: string): Promise<void> {
+  const actionUrl = buildAccountActionUrl(requestUrl, queryName, token);
   const mailer = new ResendMailer(env.RESEND_API_KEY, env.RESEND_FROM_EMAIL);
   await mailer.send({
     to: email, subject,
-    html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.9"><h2>${heading}</h2><p>${description}</p><p><a href="${actionUrl.toString()}">${actionLabel}</a></p><p>اگر این درخواست از طرف شما نبوده، این پیام را نادیده بگیرید.</p></div>`
+    html: renderAccountEmail(heading, description, actionLabel, actionUrl)
   });
 }
 
@@ -155,7 +199,7 @@ authRoutes.post("/resend-verification", async (c) => {
   if (!user || user.status !== "PENDING_VERIFICATION") return c.json({ status: "OK", message: "اگر حساب تأییدنشده‌ای با این ایمیل وجود داشته باشد، لینک ارسال خواهد شد." });
   try {
     const token = await createEmailToken(c.env, user.id, "email_verification_tokens");
-    await sendAccountEmail(c.env, email, "لینک تأیید حساب Visa Prepaid", "تأیید ایمیل", "برای فعال‌سازی حساب خود روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.", "تأیید ایمیل", token, "verify");
+    await sendAccountEmail(c.env, email, "لینک تأیید حساب Visa Prepaid", "تأیید ایمیل", "برای فعال‌سازی حساب خود روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.", "تأیید ایمیل", token, "verify", c.req.url);
   } catch (error) {
     console.error("Verification resend failed", error instanceof Error ? error.message : "unknown");
   }
@@ -173,7 +217,7 @@ authRoutes.post("/forgot-password", async (c) => {
   if (user) {
     try {
       const token = await createEmailToken(c.env, user.id, "password_reset_tokens");
-      await sendAccountEmail(c.env, email, "بازیابی رمز عبور Visa Prepaid", "تغییر رمز عبور", "برای تعیین رمز عبور جدید روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.", "تعیین رمز جدید", token, "reset");
+      await sendAccountEmail(c.env, email, "بازیابی رمز عبور Visa Prepaid", "تغییر رمز عبور", "برای تعیین رمز عبور جدید روی لینک زیر بزنید. این لینک تا ۳۰ دقیقه معتبر است.", "تعیین رمز جدید", token, "reset", c.req.url);
     } catch (error) {
       console.error("Password reset email failed", error instanceof Error ? error.message : "unknown");
     }

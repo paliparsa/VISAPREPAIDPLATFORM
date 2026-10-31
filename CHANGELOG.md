@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 - 2026-10-31
+- Build verification and password-reset links from the actual public request origin, preventing localhost URLs in production emails.
+- Redesign transactional account emails with responsive Visa Prepaid branding, a clear action button, visible fallback URL, and expiry/security guidance.
+
+
 ## 0.8.0 - 2026-10-31
 - Generalize the signed Tremendous webhook receiver to persist and classify all event types, including unknown future events.
 - Retain the verified raw event payload and source timestamp for audit and investigation.
