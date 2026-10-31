@@ -131,7 +131,12 @@ tremendousWebhookRoutes.post("/internal/webhooks/tremendous", async (c) => {
         if (!match) {
           await c.env.DB.batch([
             c.env.DB.prepare("UPDATE provider_events SET processing_status='UNMATCHED',last_error='ORDER_NOT_LINKED',processed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(eventRowId),
-            c.env.DB.prepare("UPDATE provider_event_attempts SET status='SUCCEEDED',finished_at=CURRENT_TIMESTAMP WHERE id=?").bind(attemptId)
+            c.env.DB.prepare("UPDATE provider_event_attempts SET status='SUCCEEDED',finished_at=CURRENT_TIMESTAMP WHERE id=?").bind(attemptId),
+            ...(classification.actionRequired ? [c.env.DB.prepare(`
+              INSERT OR IGNORE INTO provider_alerts
+                (id,provider,provider_event_row_id,alert_type,severity,title,message,status)
+              VALUES (?, 'TREMENDOUS', ?, ?, ?, ?, ?, 'OPEN')
+            `).bind(crypto.randomUUID(), eventRowId, eventType, classification.severity, classification.title, classification.message)] : [])
           ]);
           return c.json({ received: true, status: "UNMATCHED", category: classification.category });
         }
