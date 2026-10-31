@@ -27,12 +27,13 @@ tremendousWebhookRoutes.post("/internal/webhooks/tremendous", async (c) => {
   if (!(await verifyGatewaySignature(secret, rawBody, c.req.header("X-Tremendous-Gateway-Signature") || ""))) return jsonError("INVALID_SIGNATURE", 401);
   let payload: TremendousWebhook;
   try { payload = JSON.parse(rawBody) as TremendousWebhook; } catch { return jsonError("INVALID_JSON", 400); }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return jsonError("INVALID_EVENT", 400);
   const eventId = typeof payload.uuid === "string" ? payload.uuid.trim() : "";
   const headerEventId = (c.req.header("Idempotency-Key") || "").trim();
   const eventType = typeof payload.event === "string" ? payload.event.trim().toUpperCase() : "";
   const resourceId = typeof payload.payload?.resource?.id === "string" ? payload.payload.resource.id.trim() : "";
   const resourceType = typeof payload.payload?.resource?.type === "string" ? payload.payload.resource.type.trim().toLowerCase() : "";
-  if (!eventId || eventId.length > 200 || !eventType || eventType.length > 120) return jsonError("INVALID_EVENT", 400);
+  if (!eventId || eventId.length > 200 || !eventType || eventType.length > 120 || resourceId.length > 200) return jsonError("INVALID_EVENT", 400);
   if (!headerEventId || headerEventId !== eventId) return jsonError("IDEMPOTENCY_KEY_MISMATCH", 400);
   try {
     const inserted = await c.env.DB.prepare(`
